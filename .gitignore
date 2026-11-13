@@ -1,0 +1,20 @@
+# dependencies and build output
+node_modules/
+web/dist/
+pipeline/.venv/
+__pycache__/
+
+# local tooling
+.claude/
+
+# secrets: never commit a FIRMS MAP_KEY
+.env
+.env.*
+
+# raw / intermediate data (regenerate with pipeline/pull_firms.py)
+/data/
+pipeline/cache/
+*.tmp
+
+# packaged exports
+/exports/
