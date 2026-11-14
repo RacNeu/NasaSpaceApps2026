@@ -4,6 +4,7 @@ import { useNear } from "../hooks";
 import { matchDetections } from "../match";
 import { HotspotMap, type HotspotView } from "./HotspotMap";
 import { FrpBars, OffsetHistogram, SweepGrid } from "./MatchCharts";
+import { Scramble, Ticker } from "../fx";
 
 type Mode = "side" | "overlay" | "match";
 
@@ -51,7 +52,9 @@ export function Harmonization({ demos, matching }: { demos: DemoDay[]; matching:
       <div className="scene-inner wide">
         <div className="scene-copy">
           <div className="scene-code mono">MATCH · DETECTION-LEVEL HARMONIZATION</div>
-          <h2>Bringing observations together</h2>
+          <h2>
+            <Scramble text="Bringing observations together" />
+          </h2>
           <p className="lede">
             Drawing both sensors on one map is not harmonization. Two detections only count as the same event if they agree in space and in
             time, so we set the tolerances explicitly and measure how often the sensors agree. Change them and watch the match rate move.
@@ -92,21 +95,21 @@ export function Harmonization({ demos, matching }: { demos: DemoDay[]; matching:
           <div className="match-stats">
             <div className="ms">
               <div className="mono">MODIS WITH A VIIRS PARTNER</div>
-              <b className="cyan">{pct(stats.m ? stats.mHit / stats.m : NaN)}</b>
+              <b className="cyan"><Ticker text={String(pct(stats.m ? stats.mHit / stats.m : NaN))} /></b>
               <span>
                 {stats.mHit} of {stats.m}
               </span>
             </div>
             <div className="ms">
               <div className="mono">VIIRS WITH A MODIS PARTNER</div>
-              <b className="amber">{pct(stats.v ? stats.vHit / stats.v : NaN)}</b>
+              <b className="amber"><Ticker text={String(pct(stats.v ? stats.vHit / stats.v : NaN))} /></b>
               <span>
                 {stats.vHit} of {stats.v}
               </span>
             </div>
             <div className="ms">
               <div className="mono">MEDIAN TIME GAP</div>
-              <b>{Number.isNaN(stats.med) ? "n/a" : `${stats.med > 0 ? "+" : ""}${Math.round(stats.med)} min`}</b>
+              <b><Ticker text={String(Number.isNaN(stats.med) ? "n/a" : `${stats.med > 0 ? "+" : ""}${Math.round(stats.med)} min`)} /></b>
               <span>VIIRS relative to MODIS</span>
             </div>
           </div>

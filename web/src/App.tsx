@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Dataset, Extras } from "./types";
-import { loadDataset, loadExtras } from "./data";
+import { loadAll, type FileKey } from "./data";
+import { Intro } from "./Intro";
 import { audio } from "./audio";
 import { useAudioOn, useReducedMotion } from "./hooks";
 import { dateAt, fmtDate } from "./lib";
@@ -12,6 +13,8 @@ import { Overview } from "./views/Overview";
 import { Record } from "./views/Record";
 import { Insights } from "./views/Insights";
 import { Method } from "./views/Method";
+import { Live } from "./views/Live";
+import { Scramble, UtcClock } from "./fx";
 
 interface ViewDef {
   id: ViewId;
@@ -23,6 +26,7 @@ interface ViewDef {
 
 const VIEWS: ViewDef[] = [
   { id: "overview", label: "Globe", title: "Fire watch", regions: true, icon: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.8 3 2.8 15 0 18M12 3c-2.8 3-2.8 15 0 18" },
+  { id: "live", label: "Live", title: "Live: this week", regions: false, icon: "M12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8" },
   { id: "record", label: "Record", title: "25-year record", regions: true, icon: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4M8 14h2M14 14h2M8 17h2" },
   { id: "satellites", label: "Orbit", title: "The satellites", regions: false, icon: "M9.5 14.5l5-5M7 12l-3 3 5 5 3-3M12 7l3-3 5 5-3 3M5 5l2 2M17 17l2 2" },
   { id: "detection", label: "Detect", title: "Detection", regions: false, icon: "M12 3v4M12 17v4M3 12h4M17 12h4M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14z" },
@@ -36,40 +40,11 @@ const fromHash = (): ViewId => {
   return (VIEWS.find((v) => v.id === h)?.id ?? "overview") as ViewId;
 };
 
-/** A short power-on sequence shown once per visit. Click anywhere to skip. */
-function Boot({ data, onDone }: { data: Dataset; onDone: () => void }) {
-  useEffect(() => {
-    const id = setTimeout(onDone, 3000);
-    return () => clearTimeout(id);
-  }, [onDone]);
-  return (
-    <div className="boot" onClick={onDone} role="presentation">
-      <div className="boot-radar" aria-hidden>
-        <i />
-        <i />
-        <i />
-        <b />
-      </div>
-      <div className="boot-title">IGNIS</div>
-      <div className="boot-lines mono">
-        <span>FIRE WATCH CONSOLE · MODIS × VIIRS HARMONIZATION</span>
-        <span>LINKING TERRA · AQUA · SUOMI NPP · NOAA-20</span>
-        <span>
-          {data.daily.days.toLocaleString("en-US")} DAYS LOADED · {data.meta.start.slice(0, 4)} TO {data.meta.end.slice(0, 4)}
-        </span>
-        <span className="ok">SIGNAL ACQUIRED</span>
-      </div>
-      <div className="boot-skip mono">CLICK TO SKIP</div>
-    </div>
-  );
-}
-
 function Console({ data, extras }: { data: Dataset; extras: Extras }) {
   const m = useMission(data, extras);
   const reduced = useReducedMotion();
   const soundOn = useAudioOn();
   const [viewId, setViewId] = useState<ViewId>(fromHash);
-  const [booting, setBooting] = useState(() => !reduced && !sessionStorage.getItem("ignis-booted"));
   const def = VIEWS.find((v) => v.id === viewId)!;
 
   const go = useCallback((v: ViewId) => {
@@ -105,11 +80,6 @@ function Console({ data, extras }: { data: Dataset; extras: Extras }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [viewId, m.step]);
 
-  const endBoot = useCallback(() => {
-    sessionStorage.setItem("ignis-booted", "1");
-    setBooting(false);
-  }, []);
-
   return (
     <div className="console">
       <nav className="nav" aria-label="Views">
@@ -121,7 +91,7 @@ function Console({ data, extras }: { data: Dataset; extras: Extras }) {
         </div>
         <div className="nav-items">
           {VIEWS.map((v) => (
-            <button key={v.id} className={`nav-btn ${viewId === v.id ? "on" : ""}`} onClick={() => go(v.id)} aria-current={viewId === v.id} title={v.title}>
+            <button key={v.id} className={`nav-btn ${viewId === v.id ? "on" : ""} ${v.id === "live" ? "live-btn" : ""}`} onClick={() => go(v.id)} aria-current={viewId === v.id} title={v.title}>
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                 <path d={v.icon} />
               </svg>
@@ -142,7 +112,9 @@ function Console({ data, extras }: { data: Dataset; extras: Extras }) {
           <div className="tb-title">
             <span className="mono tb-brand">IGNIS</span>
             <span className="tb-sep" />
-            <h1>{def.title}</h1>
+            <h1>
+              <Scramble text={def.title} />
+            </h1>
           </div>
           {def.regions && (
             <div className="tb-regions" role="group" aria-label="Region">
@@ -156,19 +128,40 @@ function Console({ data, extras }: { data: Dataset; extras: Extras }) {
           )}
           <div className="tb-right mono">
             <div>
-              <span>SELECTED</span>
-              {fmtDate(dateAt(data.meta.start, m.t)).toUpperCase()}
+              <span>UTC</span>
+              <UtcClock />
             </div>
-            <div>
-              <span>RECORD</span>
-              {data.meta.start.slice(0, 4)}–{data.meta.end.slice(0, 4)} · ARCHIVE
-            </div>
+            {viewId === "live" ? (
+              <>
+                <div>
+                  <span>FEED</span>
+                  <i className="rec" /> FIRMS NEAR-REAL-TIME
+                </div>
+                <div>
+                  <span>COMPARED WITH</span>
+                  {data.meta.start.slice(0, 4)}–{data.meta.end.slice(0, 4)} RECORD
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <span>SELECTED</span>
+                  {fmtDate(dateAt(data.meta.start, m.t)).toUpperCase()}
+                </div>
+                <div>
+                  <span>RECORD</span>
+                  <i className="live-dot" />
+                  {data.meta.start.slice(0, 4)}–{data.meta.end.slice(0, 4)} · ARCHIVE
+                </div>
+              </>
+            )}
           </div>
         </header>
 
         <div className="stage">
           <div className={`view v-${viewId}`} key={viewId}>
             {viewId === "overview" && <Overview m={m} go={go} />}
+            {viewId === "live" && <Live m={m} go={go} />}
             {viewId === "record" && <Record m={m} />}
             {viewId === "satellites" && <Satellites data={data} />}
             {viewId === "detection" && <Detection demos={extras.demos} />}
@@ -185,35 +178,37 @@ function Console({ data, extras }: { data: Dataset; extras: Extras }) {
         </div>
       </div>
 
-      {booting && <Boot data={data} onDone={endBoot} />}
     </div>
   );
 }
 
 export default function App() {
-  const [data, setData] = useState<Dataset | null>(null);
-  const [extras, setExtras] = useState<Extras | null>(null);
+  const reduced = useReducedMotion();
+  const [loaded, setLoaded] = useState<Set<FileKey>>(() => new Set());
+  const [bundle, setBundle] = useState<{ data: Dataset; extras: Extras } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState(false);
+  const [introDone, setIntroDone] = useState(false);
 
   useEffect(() => {
-    Promise.all([loadDataset(), loadExtras()])
-      .then(([d, e]) => {
-        setData(d);
-        setExtras(e);
-      })
-      .catch((e) => setError(String(e)));
+    loadAll((key) => setLoaded((prev) => new Set(prev).add(key)))
+      .then(setBundle)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
-  if (error) return <div className="splash error">Could not load the mission data: {error}</div>;
-  if (!data || !extras)
-    return (
-      <div className="splash">
-        <div className="mono">IGNIS</div>
-        <div className="splash-bar">
-          <i />
-        </div>
-        <div className="mono dim">ACQUIRING SIGNAL</div>
-      </div>
-    );
-  return <Console data={data} extras={extras} />;
+  return (
+    <>
+      {bundle && revealed && <Console data={bundle.data} extras={bundle.extras} />}
+      {!introDone && (
+        <Intro
+          loaded={loaded}
+          ready={!!bundle}
+          error={error}
+          reduced={reduced}
+          onReveal={() => setRevealed(true)}
+          onDone={() => setIntroDone(true)}
+        />
+      )}
+    </>
+  );
 }

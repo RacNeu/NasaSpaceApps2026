@@ -4,6 +4,7 @@ import { FireClock } from "../components/FireClock";
 import { CalendarHeatmap, HeatLegend, type HeatMode } from "../components/CalendarHeatmap";
 import { YearChart } from "../components/YearChart";
 import { DetailPanel } from "../components/DetailPanel";
+import { Scramble } from "../fx";
 
 /** The 25-year record: burning calendar, fire clock and the per-sensor year chart. */
 export function Record({ m }: { m: Mission }) {
@@ -15,7 +16,9 @@ export function Record({ m }: { m: Mission }) {
         <div className="scene-code mono">
           RECORD · {view.meta.start.slice(0, 4)} TO {view.meta.end.slice(0, 4)}
         </div>
-        <h2>The burning calendar</h2>
+        <h2>
+          <Scramble text="The burning calendar" />
+        </h2>
         <p className="lede">
           Every day of the record on one scale. Colour shows how unusual each week is for its time of year, so a haze year stands out at a glance.
           Click anywhere to move the selected date across the whole console.

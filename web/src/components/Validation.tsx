@@ -3,6 +3,7 @@ import { scaleBand, scaleLinear, scaleLog } from "d3-scale";
 import { interpolateViridis } from "d3-scale-chromatic";
 import type { Dataset } from "../types";
 import { fmtNum } from "../lib";
+import { Ticker } from "../fx";
 
 interface Props {
   data: Dataset;
@@ -112,19 +113,19 @@ export function Validation({ data, regionId }: Props) {
 
       <div className="v-cards">
         <div className="v-card">
-          <div className="v-big">×{typicalFactor.toFixed(2)}</div>
+          <div className="v-big"><Ticker text={String(`×${typicalFactor.toFixed(2)}`)} /></div>
           <div className="v-label">typical error on a weekly total (median)</div>
         </div>
         <div className="v-card">
-          <div className="v-big">{Math.round(cal.cv_coverage_80 * 100)}%</div>
+          <div className="v-big"><Ticker text={String(`${Math.round(cal.cv_coverage_80 * 100)}%`)} /></div>
           <div className="v-label">of held-out weeks fall inside the stated 80% band</div>
         </div>
         <div className="v-card">
-          <div className="v-big">{cal.cv_r2_log === null ? "n/a" : cal.cv_r2_log.toFixed(2)}</div>
+          <div className="v-big"><Ticker text={String(cal.cv_r2_log === null ? "n/a" : cal.cv_r2_log.toFixed(2))} /></div>
           <div className="v-label">cross-validated R² (log scale)</div>
         </div>
         <div className="v-card">
-          <div className="v-big">{Number.isNaN(annualErr) ? "n/a" : `${Math.round(annualErr * 100)}%`}</div>
+          <div className="v-big"><Ticker text={String(Number.isNaN(annualErr) ? "n/a" : `${Math.round(annualErr * 100)}%`)} /></div>
           <div className="v-label">average error on whole-year totals</div>
         </div>
       </div>

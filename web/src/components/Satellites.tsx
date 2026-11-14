@@ -3,6 +3,7 @@ import type { Dataset } from "../types";
 import { audio } from "../audio";
 import { useNear, useVisible } from "../hooks";
 import type { GlobeSat } from "./EarthGlobe";
+import { Scramble, Ticker } from "../fx";
 
 // three.js is large, so it is only downloaded when this scene comes near the viewport
 const EarthGlobe = lazy(() => import("./EarthGlobe").then((m) => ({ default: m.EarthGlobe })));
@@ -84,7 +85,9 @@ export function Satellites({ data }: { data: Dataset }) {
       <div className="scene-inner">
         <div className="scene-copy">
           <div className="scene-code mono">ORBIT · THE SATELLITES</div>
-          <h2>Two perspectives. One Earth.</h2>
+          <h2>
+            <Scramble text="Two perspectives. One Earth." />
+          </h2>
           <p className="lede">
             Fires are found from orbit by looking for heat. Two families of instruments do this job. They fly at different heights, at different times of
             day, and with different pixel sizes, so a fire can count once for one and many times for the other.
@@ -92,12 +95,16 @@ export function Satellites({ data }: { data: Dataset }) {
           <div className="sensor-compare">
             <div className="sc modis glass">
               <div className="sc-n mono">MODIS</div>
-              <div className="sc-big">1 km</div>
+              <div className="sc-big">
+                <Ticker text="1 km" />
+              </div>
               <div className="sc-l">active-fire pixel · swath about 2,330 km · Terra and Aqua</div>
             </div>
             <div className="sc viirs glass">
               <div className="sc-n mono">VIIRS</div>
-              <div className="sc-big">375 m</div>
+              <div className="sc-big">
+                <Ticker text="375 m" />
+              </div>
               <div className="sc-l">active-fire pixel · swath about 3,000 km · Suomi NPP, NOAA-20, NOAA-21</div>
             </div>
           </div>
@@ -126,7 +133,7 @@ export function Satellites({ data }: { data: Dataset }) {
                 <div key={r.k}>
                   <div className="mono k">{r.k}</div>
                   <div className="v">
-                    {r.v}
+                    <Ticker text={r.v} ms={700} />
                     {r.unit && <small>{r.unit}</small>}
                   </div>
                 </div>

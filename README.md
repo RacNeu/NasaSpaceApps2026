@@ -12,6 +12,7 @@ Ignis is a single-screen mission console, not a scrolling page. A rail on the le
 | View | What it shows |
 |---|---|
 | **Globe** | The main screen. An interactive 3D globe (NASA Blue Marble) with the week's fire activity as a thermal glow, the selected region highlighted, and numbered pulsing markers on the three hottest areas. Floating panels show detections per day, how far above normal, the percentile, where it is burning, the year so far and the biggest episodes. A timeline of the whole record scrubs and plays through time. |
+| **Live** | The last seven days of NOAA-20 and NOAA-21 detections from FIRMS near-real-time data, ranked against every comparable week in the 2001–2025 record. Each region gets an early-warning level, the newest fires glow brightest on the globe, and markers flag the busiest areas of the last 48 hours. |
 | **Record** | The burning calendar (one row per year), the fire clock and the per-sensor year chart, with the uncertainty band where values are estimated. |
 | **Orbit** | A 3D Earth with the five satellites on their inclined orbits and a readout for each. Period and speed are computed from altitude with Kepler's third law. |
 | **Detect** | One real day over the true satellite photograph, each hotspot drawn at its sensor's true pixel size, plus a pixel lab. |
@@ -21,7 +22,15 @@ Ignis is a single-screen mission console, not a scrolling page. A rail on the le
 
 The selected date, region and area are shared by every view, so jumping to an episode on the globe moves the calendar too. Each view has its own address (for example `#record`), so the browser's back button and shared links work.
 
-The console replays a historical archive (2001 to 2025). It is not a live feed, and the interface says so.
+Every view except Live replays the historical archive (2001 to 2025), and the interface says which is which.
+
+### The Live view
+
+A small server function (`web/api/firms.ts`, shared logic in `web/api/_live.ts`) fetches the last seven complete UTC days plus today from the FIRMS area API, keeps nominal and high confidence detections, and aggregates them to a 0.1° grid. The browser then ranks this week's NOAA-20 total for each region against every 7-day window ending within ten days of the same date in each year of the record. NOAA-20 is used because it is the record's reference scale; NOAA-21 is shown for comparison.
+
+Limits: near-real-time data is preliminary; static heat sources such as gas flares are not filtered out, so quiet-season counts can read a little high; and a day with no NOAA-20 detections at all is flagged as a probable data gap. Responses are cached for 15 minutes on the server and 30 minutes at the CDN to protect the key's request quota.
+
+The MAP_KEY stays on the server. It is never sent to the browser or committed.
 
 ### Selecting your own area
 
@@ -53,6 +62,9 @@ Requirements: Node 20+. Python 3.10+ only to rebuild the data.
 cd web
 npm install
 npm run dev        # http://localhost:5173
+# for the Live view locally, give the dev server your key (it stays on your machine):
+#   PowerShell:  $env:FIRMS_MAP_KEY = "your_key"; npm run dev
+#   or put FIRMS_MAP_KEY=your_key in web/.env.local, which git ignores
 npm run build      # production build in web/dist
 ```
 
@@ -87,7 +99,7 @@ The full record takes a few hours to download because FIRMS counts each request 
 
 1. Push this repository to GitHub.
 2. In Vercel choose **Add New → Project**, import the repo and set **Root Directory** to `web`. The Vite preset is detected automatically.
-3. No environment variables are needed. The site is static, and the MAP_KEY must never be added to Vercel or to front-end code.
+3. For the Live view, add an environment variable in **Settings → Environment Variables**: name `FIRMS_MAP_KEY`, value your FIRMS MAP_KEY. Everything else is static and needs no variables. Without the key the Live view says it is not switched on and the rest of the console works as normal. Never put the key in front-end code or in the repository.
 
 ## Visual design
 

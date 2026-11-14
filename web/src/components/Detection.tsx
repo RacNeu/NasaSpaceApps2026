@@ -4,6 +4,7 @@ import { audio } from "../audio";
 import { useNear } from "../hooks";
 import { HotspotMap, type HotspotView, type Imagery } from "./HotspotMap";
 import { hhmm } from "../match";
+import { Scramble, Ticker } from "../fx";
 
 /* ------------------------------------------------------------------ pixel lab */
 
@@ -152,7 +153,9 @@ export function Detection({ demos }: { demos: DemoDay[] }) {
       <div className="scene-inner wide">
         <div className="scene-copy">
           <div className="scene-code mono">DETECT · ONE DAY, PIXEL BY PIXEL</div>
-          <h2>Finding thermal anomalies</h2>
+          <h2>
+            <Scramble text="Finding thermal anomalies" />
+          </h2>
           <p className="lede">
             Each glowing footprint is one hotspot: a pixel that looked hot to a satellite. It is a thermal anomaly, not a confirmed fire. This is a single day
             over a 150 km window, drawn at the true pixel size of each sensor and laid over that day's real satellite photograph.
@@ -166,10 +169,10 @@ export function Detection({ demos }: { demos: DemoDay[] }) {
           </div>
           <div className="toggle-row">
             <button className={`tog cyan ${modis ? "on" : ""}`} onClick={() => setModis((v) => !v)} aria-pressed={modis}>
-              <i /> MODIS · 1 km <b>{counts.aqua + counts.terra}</b>
+              <i /> MODIS · 1 km <b><Ticker text={String(counts.aqua + counts.terra)} /></b>
             </button>
             <button className={`tog amber ${viirs ? "on" : ""}`} onClick={() => setViirs((v) => !v)} aria-pressed={viirs}>
-              <i /> VIIRS · 375 m <b>{counts.v}</b>
+              <i /> VIIRS · 375 m <b><Ticker text={String(counts.v)} /></b>
             </button>
           </div>
           <label className="field">

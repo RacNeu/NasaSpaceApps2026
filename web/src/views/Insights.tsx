@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { Mission, ViewId } from "../mission";
 import { dateAt, fmtDate, indexOf, monthName } from "../lib";
+import { Scramble, Ticker } from "../fx";
 
 const pctText = (v: number | undefined) => (v === undefined ? "n/a" : `${Math.round(v * 100)}%`);
 
@@ -79,7 +80,9 @@ export function Insights({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
     <div className="view-pad">
       <header className="view-head">
         <div className="scene-code mono">INSIGHTS · MISSION BRIEFING</div>
-        <h2>What the record tells us</h2>
+        <h2>
+          <Scramble text="What the record tells us" />
+        </h2>
         <p className="lede">
           Six numbers a reader should leave with, all computed from the loaded data. With one consistent scale, the past becomes a yardstick: you can
           tell whether this week is ordinary or the start of something, with a stated margin of error.
@@ -89,7 +92,9 @@ export function Insights({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
       <div className="headlines six">
         {items.map((it) => (
           <div key={it.label} className={`headline glass ${it.tone}`}>
-            <div className="headline-big">{it.big}</div>
+            <div className="headline-big">
+              <Ticker text={it.big} />
+            </div>
             <div className="headline-label">{it.label}</div>
           </div>
         ))}

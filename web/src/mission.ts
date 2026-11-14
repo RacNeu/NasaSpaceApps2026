@@ -4,7 +4,7 @@ import { audio } from "./audio";
 import { indexOf } from "./lib";
 import { buildAreaSeries, CUSTOM_ID, withArea, type Aoi } from "./aoi";
 
-export type ViewId = "overview" | "record" | "satellites" | "detection" | "harmonize" | "insights" | "method";
+export type ViewId = "overview" | "live" | "record" | "satellites" | "detection" | "harmonize" | "insights" | "method";
 
 /** State shared by every view of the console: selected date, region, area of interest and playback. */
 export function useMission(data: Dataset, extras: Extras) {

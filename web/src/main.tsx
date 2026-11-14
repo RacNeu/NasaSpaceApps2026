@@ -12,6 +12,9 @@ import "./styles.css";
 import "./theme.css";
 import "./extras.css";
 import "./console.css";
+import "./fx.css";
+import "./intro.css";
+import "./live.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

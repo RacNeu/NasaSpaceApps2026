@@ -4,6 +4,7 @@ import { scaleLinear } from "d3-scale";
 import type { Mission, ViewId } from "../mission";
 import { MapLegend, MapView } from "../components/MapView";
 import { dateAt, fmtDate, fmtNum, indexOf, levelFor, monthName, rollingMean } from "../lib";
+import { Ticker } from "../fx";
 
 const avg = (a: Float32Array, t: number, h = 3) => {
   let s = 0;
@@ -40,14 +41,16 @@ function Donut({ m }: { m: Mission }) {
     <div className="donut-row">
       <svg viewBox="-60 -60 120 120" className="donut" role="img" aria-label="Share of detections by region this week">
         <circle r="43" fill="none" stroke="rgba(69,184,209,0.12)" strokeWidth="18" />
+        <g className="donut-arcs">
         {total > 0 &&
           arcs.map((a) => (
             <path key={a.data.id} d={gen(a) ?? undefined} fill={a.data.color} onClick={() => m.setRegionId(a.data.id)} style={{ cursor: "pointer" }}>
               <title>{a.data.name}</title>
             </path>
           ))}
+        </g>
         <text y="-2" textAnchor="middle" className="donut-n">
-          {fmtNum(total)}
+          <Ticker text={String(fmtNum(total))} />
         </text>
         <text y="12" textAnchor="middle" className="donut-l">
           PER DAY
@@ -59,7 +62,7 @@ function Donut({ m }: { m: Mission }) {
             <button className={m.regionId === p.id ? "on" : ""} onClick={() => m.setRegionId(p.id)}>
               <i style={{ background: p.color }} />
               <span>{p.name}</span>
-              <b>{total > 0 ? `${Math.round((100 * p.v) / total)}%` : "0%"}</b>
+              <b><Ticker text={String(total > 0 ? `${Math.round((100 * p.v) / total)}%` : "0%")} /></b>
             </button>
           </li>
         ))}
@@ -108,9 +111,9 @@ function YearSpark({ m }: { m: Mission }) {
           <stop offset="1" stopColor="#FF9D43" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={areaPath} fill="url(#sparkfill)" />
+      <path key={`a-${year}-${regionId}`} className="fade-in" d={areaPath} fill="url(#sparkfill)" />
       <path d={normPath} fill="none" stroke="#8396ab" strokeWidth="1" strokeDasharray="3 3" />
-      <path d={linePath} fill="none" stroke="#FF9D43" strokeWidth="1.6" />
+      <path key={`l-${year}-${regionId}`} className="draw-line" pathLength={1} d={linePath} fill="none" stroke="#FF9D43" strokeWidth="1.6" />
       <line x1={x(t - first)} x2={x(t - first)} y1="0" y2={H - 14} stroke="#fff" strokeWidth="1" />
       {[0, 3, 6, 9].map((mo) => (
         <text key={mo} x={x((Date.UTC(year, mo, 1) - Date.UTC(year, 0, 1)) / 86_400_000) + 2} y={H - 3} className="spark-tick">
@@ -149,7 +152,7 @@ function RecordStrip({ m }: { m: Mission }) {
       <svg viewBox={`0 0 ${n} 30`} preserveAspectRatio="none" className="strip-svg" aria-hidden>
         {bars.map((v, i) => {
           const h = Math.sqrt(v / max) * 28;
-          return <rect key={i} x={i + 0.1} y={30 - h} width={0.8} height={h} fill={v / max > 0.35 ? "#F05A42" : v / max > 0.1 ? "#FF9D43" : "#3d6f86"} />;
+          return <rect key={i} className="grow" style={{ animationDelay: `${i * 2}ms` }} x={i + 0.1} y={30 - h} width={0.8} height={h} fill={v / max > 0.35 ? "#F05A42" : v / max > 0.1 ? "#FF9D43" : "#3d6f86"} />;
         })}
       </svg>
       <div className="strip-cursor" style={{ left: `${(100 * t) / m.maxT}%` }} />
@@ -242,19 +245,19 @@ export function Overview({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
         <div className="hud-panel glass kpis">
           <div className="kpi">
             <div className="mono k">DETECTIONS / DAY</div>
-            <div className="kpi-n amber">{info.none ? "n/a" : fmtNum(info.v)}</div>
+            <div className="kpi-n amber"><Ticker text={String(info.none ? "n/a" : fmtNum(info.v))} /></div>
           </div>
           <div className="kpi">
             <div className="mono k">VS NORMAL</div>
-            <div className={`kpi-n ${info.ratio >= 1.5 ? "fire" : ""}`}>{Number.isNaN(info.ratio) ? "n/a" : `${info.ratio.toFixed(1)}×`}</div>
+            <div className={`kpi-n ${info.ratio >= 1.5 ? "fire" : ""}`}><Ticker text={String(Number.isNaN(info.ratio) ? "n/a" : `${info.ratio.toFixed(1)}×`)} /></div>
           </div>
           <div className="kpi">
             <div className="mono k">PERCENTILE</div>
-            <div className="kpi-n">{Number.isNaN(info.p) ? "n/a" : Math.round(info.p)}</div>
+            <div className="kpi-n"><Ticker text={String(Number.isNaN(info.p) ? "n/a" : Math.round(info.p))} /></div>
           </div>
           <div className="kpi">
             <div className="mono k">TYPICAL / DAY</div>
-            <div className="kpi-n cyan">{Number.isNaN(info.norm) ? "n/a" : fmtNum(info.norm)}</div>
+            <div className="kpi-n cyan"><Ticker text={String(Number.isNaN(info.norm) ? "n/a" : fmtNum(info.norm))} /></div>
           </div>
         </div>
 
@@ -322,6 +325,12 @@ export function Overview({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
         </div>
 
         <div className="hud-panel glass link-panel">
+          <button onClick={() => go("live")}>
+            <span className="mono live-tag">
+              <i className="rec" /> LIVE
+            </span>{" "}
+            This week against 25 years <i>→</i>
+          </button>
           <button onClick={() => go("record")}>
             <span className="mono">OPEN</span> The full burning calendar <i>→</i>
           </button>
