@@ -1,4 +1,5 @@
-import { getLive } from "./_live";
+// the ".js" extension is required: this project is an ES module, and Node does not guess extensions
+import { getLive } from "./_live.js";
 
 // provided by the Node runtime on Vercel
 declare const process: { env: Record<string, string | undefined> };
