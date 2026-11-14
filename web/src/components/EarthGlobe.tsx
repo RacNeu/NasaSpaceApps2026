@@ -22,9 +22,10 @@ interface Props {
 
 const R_EARTH = 6371;
 const EXAGGERATE = 3.4; // orbit heights are exaggerated so the rings do not sit on the surface
-const GIBS = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&CRS=EPSG:4326&BBOX=-90,-180,90,180&WIDTH=2048&HEIGHT=1024";
-const DAY_URL = `${GIBS}&LAYERS=BlueMarble_NextGeneration&FORMAT=image/jpeg`;
-const NIGHT_URL = `${GIBS}&LAYERS=VIIRS_Black_Marble&FORMAT=image/png`;
+// NASA Blue Marble (day) and VIIRS Black Marble (night), bundled with the site so the globe never
+// depends on an outside server at view time. Source: NASA GIBS.
+const DAY_URL = `${import.meta.env.BASE_URL}textures/earth_day.jpg`;
+const NIGHT_URL = `${import.meta.env.BASE_URL}textures/earth_night.jpg`;
 
 /** three.js maps longitude 0 to +x and 90E to -z on a SphereGeometry. */
 const lonLat = (lon: number, lat: number, r = 1) => {

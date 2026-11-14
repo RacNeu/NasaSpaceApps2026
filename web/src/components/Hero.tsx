@@ -3,7 +3,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Dataset } from "../types";
 import { audio } from "../audio";
-import { clamp01, lerp, smooth, useReducedMotion, useScrollProgress } from "../hooks";
+import { clamp01, lerp, smooth, useNear, useReducedMotion, useScrollProgress } from "../hooks";
 import { fmtDate, indexOf, dateAt } from "../lib";
 
 const GIBS = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best";
@@ -29,6 +29,8 @@ export function Hero({ data }: Props) {
   const fade = useRef<HTMLDivElement>(null);
   const hudRef = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
+  // the globe is only alive while the intro is near the viewport
+  const [nearRef, near] = useNear<HTMLElement>("900px");
 
   const peak = (() => {
     const best = [...data.meta.events].sort((a, b) => b.total - a.total)[0];
@@ -134,7 +136,7 @@ export function Hero({ data }: Props) {
 
   // globe
   useEffect(() => {
-    if (!mapEl.current || map.current) return;
+    if (!near || !mapEl.current || map.current) return;
     const m = new maplibregl.Map({
       container: mapEl.current,
       interactive: false,
@@ -154,6 +156,12 @@ export function Hero({ data }: Props) {
           "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 4, 0.8, 6, 0],
         },
         sources: {
+          // a single bundled world image sits under the live tiles, so the globe is never blank
+          bm0: {
+            type: "image",
+            url: `${import.meta.env.BASE_URL}textures/earth_mercator.jpg`,
+            coordinates: [[-180, 85.0511], [180, 85.0511], [180, -85.0511], [-180, -85.0511]],
+          },
           bm: {
             type: "raster",
             tiles: [`${GIBS}/BlueMarble_NextGeneration/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg`],
@@ -163,6 +171,7 @@ export function Hero({ data }: Props) {
         },
         layers: [
           { id: "bg", type: "background", paint: { "background-color": "#05080f" } },
+          { id: "bm0", type: "raster", source: "bm0", paint: { "raster-brightness-max": 0.82, "raster-saturation": -0.1, "raster-contrast": 0.1 } },
           { id: "bm", type: "raster", source: "bm", paint: { "raster-brightness-max": 0.82, "raster-saturation": -0.1, "raster-contrast": 0.1 } },
         ],
       } as any,
@@ -248,7 +257,7 @@ export function Hero({ data }: Props) {
       ready.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [near]);
 
   const begin = async (withSound: boolean) => {
     if (withSound) await audio.enable();
@@ -260,7 +269,13 @@ export function Hero({ data }: Props) {
   const peakDate = fmtDate(dateAt(data.meta.start, peakIdx));
 
   return (
-    <section id="intro" ref={section} className={`hero ${reduced ? "reduced" : ""}`}>
+    <section
+      id="intro"
+      ref={(n) => {
+        (section as React.MutableRefObject<HTMLElement | null>).current = n;
+        nearRef(n);
+      }}
+      className={`hero ${reduced ? "reduced" : ""}`}>
       <div className="hero-stage">
         <canvas ref={starsEl} className="stars" aria-hidden />
         <div ref={globeLayer} className="hero-globe">

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DemoDay } from "../types";
 import { audio } from "../audio";
-import { useSeen } from "../hooks";
+import { useNear } from "../hooks";
 import { HotspotMap, type HotspotView, type Imagery } from "./HotspotMap";
 import { hhmm } from "../match";
 
@@ -106,7 +106,7 @@ const IMAGERY: { id: Imagery; label: string }[] = [
 ];
 
 export function Detection({ demos }: { demos: DemoDay[] }) {
-  const [ref, seen] = useSeen<HTMLElement>("500px");
+  const [ref, seen] = useNear<HTMLElement>("600px");
   const [di, setDi] = useState(0);
   const [imagery, setImagery] = useState<Imagery>("aqua");
   const [modis, setModis] = useState(true);
@@ -216,7 +216,13 @@ export function Detection({ demos }: { demos: DemoDay[] }) {
           </p>
         </div>
         <div className="scene-map">
-          {seen && <HotspotMap key={demo.id} demo={demo} view={view} imagery={imagery} modisFlags={null} viirsFlags={null} />}
+          {seen ? (
+            <HotspotMap key={demo.id} demo={demo} view={view} imagery={imagery} modisFlags={null} viirsFlags={null} />
+          ) : (
+            <div className="hs-map-wrap">
+              <div className="hs-map" />
+            </div>
+          )}
           <div className="map-key">
             <span className="k cyan" /> MODIS 1 km
             <span className="k amber" /> VIIRS 375 m

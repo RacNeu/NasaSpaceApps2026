@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { DemoDay } from "../types";
@@ -73,6 +73,8 @@ export function HotspotMap({ demo, view, imagery, modisFlags, viirsFlags, syncId
   const ready = useRef(false);
   const latest = useRef({ demo, view, imagery, modisFlags, viirsFlags });
   latest.current = { demo, view, imagery, modisFlags, viirsFlags };
+  const [settled, setSettled] = useState(false);
+  const [imgFailed, setImgFailed] = useState(false);
 
   const apply = () => {
     const m = map.current;
@@ -150,6 +152,20 @@ export function HotspotMap({ demo, view, imagery, modisFlags, viirsFlags, syncId
       ready.current = true;
       apply();
     });
+    // Imagery comes from NASA GIBS at view time. If no tile at all arrives, say so: the detections
+    // are bundled with the site and still draw on the dark background.
+    let tilesOk = 0;
+    let tilesBad = 0;
+    m.on("data", (e) => {
+      if ((e as any).tile && String((e as any).sourceId).startsWith("img-")) tilesOk++;
+    });
+    m.on("error", (e) => {
+      if (String((e as any).sourceId).startsWith("img-")) tilesBad++;
+    });
+    m.on("idle", () => {
+      setSettled(true);
+      setImgFailed(tilesBad > 0 && tilesOk === 0);
+    });
     // camera sync between maps that share an id
     if (syncId) {
       if (!registry.has(syncId)) registry.set(syncId, new Set());
@@ -178,6 +194,8 @@ export function HotspotMap({ demo, view, imagery, modisFlags, viirsFlags, syncId
     <div className="hs-map-wrap">
       <div ref={el} className="hs-map" />
       {label && <div className="hs-label mono">{label}</div>}
+      {!settled && <div className="map-status mono">LOADING IMAGERY</div>}
+      {imgFailed && imagery !== "none" && <div className="map-status warn mono">IMAGERY UNAVAILABLE · DETECTIONS STILL SHOWN</div>}
     </div>
   );
 }

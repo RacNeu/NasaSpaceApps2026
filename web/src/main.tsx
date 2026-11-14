@@ -10,6 +10,7 @@ import "@fontsource/ibm-plex-mono/500.css";
 import App from "./App";
 import "./styles.css";
 import "./theme.css";
+import "./extras.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
