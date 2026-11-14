@@ -11,11 +11,11 @@ Ignis is a single-screen mission console, not a scrolling page. A rail on the le
 
 | View | What it shows |
 |---|---|
-| **Globe** | The main screen. An interactive 3D globe (NASA Blue Marble) with the week's fire activity as a thermal glow, the selected region highlighted, and numbered pulsing markers on the three hottest areas. Floating panels show detections per day, how far above normal, the percentile, where it is burning, the year so far and the biggest episodes. A timeline of the whole record scrubs and plays through time. |
+| **Globe** | The main screen. An interactive 3D globe (NASA Blue Marble) with a live Fire Wire news strip and a Live Earth mode (see below), and the week's fire activity as 3D columns (height and colour follow each cell's detections; switch to a heat glow or a flat grid), the selected region highlighted, and numbered pulsing markers on the three hottest areas. Floating panels show detections per day, how far above normal, the percentile, where it is burning, the year so far and the biggest episodes. A timeline of the whole record scrubs and plays through time. |
 | **Live** | The last seven days of NOAA-20 and NOAA-21 detections from FIRMS near-real-time data, ranked against every comparable week in the 2001–2025 record. Each region gets an early-warning level, the newest fires glow brightest on the globe, and markers flag the busiest areas of the last 48 hours. |
 | **Record** | The burning calendar (one row per year), the fire clock and the per-sensor year chart, with the uncertainty band where values are estimated. |
-| **Orbit** | A 3D Earth with the five satellites on their inclined orbits and a readout for each. Period and speed are computed from altitude with Kepler's third law. |
-| **Detect** | One real day over the true satellite photograph, each hotspot drawn at its sensor's true pixel size, plus a pixel lab. |
+| **Orbit** | A 3D Earth with the five satellites on their inclined orbits and a readout for each. Period and speed are computed from altitude with Kepler's third law. Day and night follow the real sun at the current UTC time, the selected satellite's imaging swath is drawn on the ground at its true width (2,330 km for MODIS, about 3,000 km for VIIRS), and a beacon on each sector opens it. |
+| **Detect** | One real day over the true satellite photograph, each hotspot drawn at its sensor's true pixel size, plus a pixel lab: one 1 km MODIS pixel split into 375 m VIIRS pixels, with scenarios (two fires in one pixel, a small fire, a large fire front) and a free mode showing why VIIRS reports more hotspots. |
 | **Match** | Live detection matching with adjustable distance and time tolerances, and three charts that explain the result. |
 | **Insights** | Six headline numbers computed from the data, who could use the record, and what comes next. |
 | **Method** | Held-out validation, the method, its limits, credits and downloads (CSV and JSON). |
@@ -30,7 +30,23 @@ A small server function (`web/api/firms.ts`, shared logic in `web/api/_live.ts`)
 
 Limits: near-real-time data is preliminary; static heat sources such as gas flares are not filtered out, so quiet-season counts can read a little high; and a day with no NOAA-20 detections at all is flagged as a probable data gap. Responses are cached for 15 minutes on the server and 30 minutes at the CDN to protect the key's request quota.
 
+### Fire Wire and Live Earth
+
+The Globe view carries a breaking-news strip, the **Fire Wire**, fed by the same function with `?sector=world`: the last two days of NOAA-20 and NOAA-21 detections for the whole planet (about 150,000 detections, 13 MB of CSV from FIRMS), aggregated on the server to a 0.5° grid of about 8,500 cells and a 190 KB response. The browser names each cell's country from a precomputed lookup grid (`web/public/data/countrygrid.json`, built from Natural Earth 1:50m by `web/scripts/build_countrygrid.mjs`) and writes the headlines: the planet total, the most active countries, the most intense cluster by fire radiative power, and each archive sector's count. Headlines rotate on their own; clicking one, or turning on **Auto tour**, switches the globe to **Live Earth**, where every cell on the planet is a 3D column, and flies the camera there. Headlines inside an archive sector offer a jump into that sector's 25-year record. The world response is cached for 30 minutes on the server and at the CDN.
+
 The MAP_KEY stays on the server. It is never sent to the browser or committed.
+
+### Sectors
+
+A **Sector** box in the top bar switches the whole console between places. Every sector runs through the same harmonization, validation and anomaly code, so they are directly comparable.
+
+| Sector | Regions | Grid |
+|---|---|---|
+| **Southeast Asia** (default, detailed) | Peninsular Malaysia, Sumatra, Kalimantan, Sarawak/Sabah/Brunei | 0.5° |
+| **Mainland Southeast Asia** | Thailand, Myanmar, Laos, Cambodia, Vietnam | 0.5° |
+| **Australia**, **Brazil**, **United States**, **Canada** | the country | 1° |
+
+The detailed sector alone has detection-level matching, the pixel-scale demo days and hand-drawn sub-regions. The others are built from the FIRMS yearly country files, so each detection's country is FIRMS's own attribution, and static heat sources are filtered with the same `type` rule. Each sector is loaded only when someone picks it, and the address keeps it (`?sector=australia`). The Live view works for every sector, and Insights compares how large the MODIS-to-VIIRS gap is in each one.
 
 ### Selecting your own area
 
@@ -91,6 +107,13 @@ python pipeline/build_dataset.py
 # detection-level matching
 python pipeline/pull_raw_windows.py
 python pipeline/match_sensors.py
+
+# the other sectors (public bulk files, no key needed; keep the cache outside the repo)
+python pipeline/pull_countries.py --cache ../NasaSpaceApps/pipeline/cache_sectors
+python pipeline/build_sector.py --cache ../NasaSpaceApps/pipeline/cache_sectors
+
+# the country lookup grid used to name live hotspots (run from web/, takes about two minutes)
+node scripts/build_countrygrid.mjs
 ```
 
 The full record takes a few hours to download because FIRMS counts each request as several transactions.
@@ -135,6 +158,9 @@ pipeline/pull_firms.py          download the FIRMS archive, aggregate to a 0.5°
 pipeline/build_dataset.py       calibrate, validate, flag anomalies, write JSON
 pipeline/pull_raw_windows.py    download raw detections for the matching sample periods
 pipeline/match_sensors.py       detection-level matching and demo-day extracts
+pipeline/sectors.py             the other sectors: boxes, grid sizes and countries
+pipeline/pull_countries.py      download FIRMS yearly country files and aggregate them
+pipeline/build_sector.py        harmonize each sector with the same code, write data/sectors/
 web/                            React + TypeScript + Vite + MapLibre front end
 web/public/data/                generated dataset served by the site
 ```

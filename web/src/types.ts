@@ -43,6 +43,8 @@ export interface Meta {
   calibration: Record<string, Calibration>;
   validation: Record<string, Validation>;
   events: FireEvent[];
+  /** Present for the country-level sectors; absent for the detailed Southeast Asia sector. */
+  sector?: { id: string; name: string; detailed: boolean; story: string };
 }
 
 export interface Series {

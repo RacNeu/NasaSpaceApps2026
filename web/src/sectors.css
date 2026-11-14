@@ -1,0 +1,314 @@
+/* The sector picker, the sector-switch overlay and the detailed-only notice. */
+
+.sector {
+  position: relative;
+  flex: none;
+}
+.sector-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #fff;
+  background: linear-gradient(160deg, rgba(69, 184, 209, 0.22), rgba(13, 24, 40, 0.75));
+  border: 1px solid rgba(69, 184, 209, 0.55);
+  border-radius: 10px;
+  box-shadow: 0 0 18px rgba(69, 184, 209, 0.22);
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.sector-btn svg {
+  color: var(--cyan);
+}
+.sector-btn:hover,
+.sector-btn.on {
+  border-color: var(--cyan);
+  box-shadow: 0 0 26px rgba(69, 184, 209, 0.45);
+}
+.sector-k {
+  font-size: 9px;
+  color: var(--cyan);
+}
+.sector-name {
+  font-weight: 500;
+  white-space: nowrap;
+}
+.sector-caret {
+  color: var(--cyan);
+  font-size: 10px;
+}
+.sector-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 380px;
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  z-index: 40;
+  padding: 12px;
+  animation: panel-in 0.25s ease-out both;
+}
+.sector-search {
+  width: 100%;
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: rgba(5, 9, 16, 0.8);
+  border: 1px solid rgba(69, 184, 209, 0.3);
+  border-radius: 8px;
+  outline: none;
+}
+.sector-search:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 12px rgba(69, 184, 209, 0.3);
+}
+.sector-g {
+  font-size: 9.5px;
+  color: var(--amber);
+  margin: 8px 4px 6px;
+}
+.sector-opt {
+  width: 100%;
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  padding: 9px 11px;
+  margin-bottom: 4px;
+  background: rgba(8, 14, 25, 0.6);
+  border: 1px solid rgba(69, 184, 209, 0.12);
+  border-radius: 9px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.sector-opt:hover {
+  border-color: rgba(69, 184, 209, 0.5);
+  background: rgba(69, 184, 209, 0.07);
+}
+.sector-opt.on {
+  border-color: var(--cyan);
+  background: rgba(69, 184, 209, 0.12);
+}
+.so-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+}
+.so-head b {
+  font-weight: 600;
+}
+.so-tag {
+  font-size: 8.5px;
+  padding: 1px 6px;
+  border: 1px solid var(--amber);
+  color: var(--amber);
+  border-radius: 4px;
+}
+.so-tag.cur {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+.so-story {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.sector-empty,
+.sector-foot {
+  font-size: 9.5px;
+  color: var(--muted);
+  padding: 8px 4px 2px;
+}
+.sector-title {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+
+/* switching sector */
+.warp {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 18px;
+  background: radial-gradient(ellipse at center, rgba(10, 22, 38, 0.85), rgba(3, 5, 10, 0.94) 70%);
+  backdrop-filter: blur(6px);
+  animation: fade 0.25s ease-out both;
+}
+.warp .boot-radar {
+  width: 150px;
+  height: 150px;
+}
+.warp-t {
+  font-size: 11px;
+  color: var(--cyan);
+  text-shadow: 0 0 12px rgba(69, 184, 209, 0.8);
+  animation: breathe 1.2s ease-in-out infinite;
+}
+
+.detailed-only {
+  max-width: 760px;
+  margin: 8vh auto 0;
+  padding: 30px 32px;
+}
+.detailed-only .lede {
+  margin-bottom: 22px;
+}
+
+/* sector comparison in Insights */
+.compare {
+  margin-bottom: 14px;
+}
+.compare h3 {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+.compare-lede {
+  font-size: 14px;
+  color: #c4d2e0;
+  max-width: 95ch;
+  margin-bottom: 14px;
+}
+.cmp-rows {
+  display: grid;
+  gap: 6px;
+}
+.cmp-head,
+.cmp-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 150px 110px;
+  gap: 14px;
+  align-items: center;
+}
+.cmp-head {
+  font-size: 9px;
+  color: var(--muted);
+  padding: 0 10px;
+}
+.cmp-row {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(8, 14, 25, 0.55);
+  border: 1px solid rgba(69, 184, 209, 0.1);
+  font-size: 13px;
+}
+.cmp-row.on {
+  border-color: var(--cyan);
+  background: rgba(69, 184, 209, 0.1);
+}
+.cmp-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 18px;
+}
+.cmp-bar i {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #45b8d1, #ff9d43);
+  box-shadow: 0 0 10px rgba(255, 157, 67, 0.4);
+}
+.cmp-bar b {
+  font-weight: 500;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.grow-x {
+  transform-origin: left;
+  animation: grow-x 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+@media (max-width: 760px) {
+  .cmp-head,
+  .cmp-row {
+    grid-template-columns: 100px minmax(0, 1fr);
+  }
+  .cmp-head span:nth-child(n + 3),
+  .cmp-row > span:nth-child(n + 3) {
+    display: none;
+  }
+}
+
+/* pixel lab scenarios */
+.pl-scen {
+  margin: 12px 0 0;
+}
+.pl-explain {
+  flex-basis: 100%;
+  font-size: 14px;
+  color: #dbe8f3;
+  border-left: 2px solid var(--amber);
+  padding: 4px 0 4px 12px;
+  max-width: 62ch;
+  animation: panel-in 0.4s ease-out both;
+}
+.pl-brush {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pl-brush .mono {
+  font-size: 9.5px;
+  color: var(--muted);
+  margin-right: 4px;
+}
+.pl-cell,
+.pl-modis {
+  transition: fill 0.35s ease, stroke-opacity 0.35s ease;
+}
+.pl-modis.hit {
+  filter: drop-shadow(0 0 8px rgba(69, 184, 209, 0.7));
+}
+.pl-fire {
+  animation: flicker 1.6s ease-in-out infinite alternate;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes flicker {
+  to {
+    opacity: 0.75;
+    transform: scale(1.08);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pl-fire {
+    animation: none;
+  }
+}
+
+/* sector beacons on the orbit globe */
+.globe-beacon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 9.5px;
+  padding: 3px 8px;
+  color: #ffd9ae;
+  background: rgba(20, 10, 4, 0.72);
+  border: 1px solid rgba(255, 157, 67, 0.7);
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 0 12px rgba(255, 157, 67, 0.35);
+  transition: opacity 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.globe-beacon:hover {
+  background: rgba(255, 157, 67, 0.25);
+  box-shadow: 0 0 20px rgba(255, 157, 67, 0.7);
+}
+.globe-beacon.on {
+  color: #dff7fd;
+  border-color: #9fe6f5;
+  background: rgba(69, 184, 209, 0.22);
+  box-shadow: 0 0 16px rgba(69, 184, 209, 0.6);
+}

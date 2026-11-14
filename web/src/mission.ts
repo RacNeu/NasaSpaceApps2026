@@ -18,7 +18,7 @@ export function useMission(data: Dataset, extras: Extras) {
     return best ? indexOf(meta.start, best.peak) : maxT;
   });
   const [playing, setPlaying] = useState(false);
-  const [mapMode, setMapMode] = useState<"heat" | "cells">("heat");
+  const [mapMode, setMapMode] = useState<"columns" | "heat" | "cells">("columns");
   const [aoi, setAoi] = useState<Aoi | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [drawMsg, setDrawMsg] = useState<string | null>(null);

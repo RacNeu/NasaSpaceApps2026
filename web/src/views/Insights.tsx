@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { Mission, ViewId } from "../mission";
 import { dateAt, fmtDate, indexOf, monthName } from "../lib";
 import { Scramble, Ticker } from "../fx";
+import { SectorCompare } from "../components/SectorCompare";
 
 const pctText = (v: number | undefined) => (v === undefined ? "n/a" : `${Math.round(v * 100)}%`);
 
@@ -60,7 +61,7 @@ export function Insights({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
     {
       big: `${pctText(h?.aqua_in_viirs?.rate)} vs ${pctText(h?.viirs_in_aqua?.rate)}`,
       tone: "cyan",
-      label: `of Aqua detections have a NOAA-20 partner, against the share of NOAA-20 detections with an Aqua partner (1 km, ±60 min, Aug to Oct ${y ?? ""})`,
+      label: `of Aqua detections have a NOAA-20 partner, against the share of NOAA-20 detections with an Aqua partner (1 km, ±60 min, Aug to Oct ${y ?? ""}${meta.sector ? ", Southeast Asia sample" : ""})`,
     },
     { big: `${Math.round(cal.cv_coverage_80 * 100)}%`, tone: "amber", label: "of weeks in years the model never saw fall inside its stated 80% range" },
     { big: topLabel, tone: "fire", label: top?.times_normal ? `the largest episode in the record, ${top.times_normal}× the normal level for that time of year` : "the largest episode in the record" },
@@ -99,6 +100,8 @@ export function Insights({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
           </div>
         ))}
       </div>
+
+      <SectorCompare currentId={meta.sector?.id ?? "sea"} />
 
       <div className="outlook-grid">
         <article className="v-box">

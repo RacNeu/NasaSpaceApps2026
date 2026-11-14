@@ -21,12 +21,12 @@ export type LiveState =
   | { status: "error"; message: string };
 
 /** Fetches the live feed once, with a manual refresh. */
-export function useLiveFeed() {
+export function useLiveFeed(sector = "sea") {
   const [state, setState] = useState<LiveState>({ status: "loading" });
   const load = useCallback(async () => {
     setState({ status: "loading" });
     try {
-      const r = await fetch(`${import.meta.env.BASE_URL}api/firms`);
+      const r = await fetch(`${import.meta.env.BASE_URL}api/firms?sector=${encodeURIComponent(sector)}`);
       // a deployment without the function serves the app's HTML here instead of JSON
       const type = r.headers.get("content-type") ?? "";
       if (r.status === 404 || !type.includes("json")) return setState({ status: "unconfigured" });
@@ -37,7 +37,7 @@ export function useLiveFeed() {
     } catch (e) {
       setState({ status: "error", message: e instanceof Error ? e.message : String(e) });
     }
-  }, []);
+  }, [sector]);
   useEffect(() => {
     load();
   }, [load]);
@@ -105,7 +105,20 @@ function weeklyBaseline(s: Series, start: string, days: number, endDoy: number) 
 }
 
 export function summarizeLive(data: Dataset, p: LivePayload): { regions: RegionLive[]; study: RegionLive; gaps: number[] } {
-  const named = data.meta.regions.filter((r) => r.polygon);
+  const named = data.meta.regions.filter((r) => r.id !== "study_area" && r.id !== "custom");
+  // country sectors have no outlines: a detection takes the region of the record's grid cell it falls in
+  const { box, cell } = data.meta;
+  const cellRegion = new Map<string, number>();
+  for (const [cx, cy, rg] of data.grid.cells) if (rg >= 0) cellRegion.set(`${cx},${cy}`, rg);
+  const byGrid = (lon: number, lat: number): string | null => {
+    const cx = Math.floor((lon - box[0]) / cell);
+    const cy = Math.floor((lat - box[1]) / cell);
+    for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const rg = cellRegion.get(`${cx + dx},${cy + dy}`);
+      if (rg !== undefined) return data.meta.regions[rg]?.id ?? null;
+    }
+    return null;
+  };
   const daily: Record<string, number[]> = {};
   for (const r of named) daily[r.id] = new Array(p.days.length).fill(0);
 
@@ -116,7 +129,7 @@ export function summarizeLive(data: Dataset, p: LivePayload): { regions: RegionL
     const k = `${lon},${lat}`;
     let rid = memo.get(k);
     if (rid === undefined) {
-      rid = named.find((r) => inPolygon(lon, lat, r.polygon!))?.id ?? null;
+      rid = named[0]?.polygon ? (named.find((r) => r.polygon && inPolygon(lon, lat, r.polygon))?.id ?? null) : byGrid(lon, lat);
       memo.set(k, rid);
     }
     if (rid) daily[rid][di] += n;
@@ -138,7 +151,7 @@ export function summarizeLive(data: Dataset, p: LivePayload): { regions: RegionL
 
   const regions = named.map((r) => make(r.id, r.name, r.color, daily[r.id]));
   const sum = p.days.map((_, i) => regions.reduce((a, r) => a + r.daily[i], 0));
-  const study = make("study_area", "All four regions", "#ffffff", sum);
+  const study = make("study_area", data.meta.regions.find((r) => r.id === "study_area")?.name ?? "All regions", "#ffffff", sum);
   // complete days on which NOAA-20 reported nothing at all over the whole box: probably an outage
   const gaps = p.perDay.noaa20.slice(0, 7).map((v, i) => (v === 0 ? i : -1)).filter((i) => i >= 0);
   return { regions, study, gaps };

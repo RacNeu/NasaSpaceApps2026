@@ -1,8 +1,11 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { arc, area as d3area, line as d3line, pie } from "d3-shape";
 import { scaleLinear } from "d3-scale";
 import type { Mission, ViewId } from "../mission";
-import { MapLegend, MapView } from "../components/MapView";
+import { MapLegend, MapView, type MapFocus } from "../components/MapView";
+import { FireWire } from "../components/FireWire";
+import { summarizeWorld, useWorldFeed, type Headline } from "../world";
+import type { SectorEntry } from "../data";
 import { dateAt, fmtDate, fmtNum, indexOf, levelFor, monthName, rollingMean } from "../lib";
 import { Ticker } from "../fx";
 
@@ -167,13 +170,27 @@ function RecordStrip({ m }: { m: Mission }) {
 
 /* ---------------------------------------------------------------- the view */
 
-export function Overview({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
+interface SectorNav {
+  sectors: SectorEntry[];
+  current: string;
+  onOpen: (id: string) => void;
+}
+
+export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; nav?: SectorNav }) {
   const { data, view, regionId, t } = m;
   const meta = view.meta;
   const s = view.daily.regions[regionId];
   const date = dateAt(meta.start, t);
   const week = Math.min(Math.floor(t / 7), data.grid.weeks - 1);
-  const regionName = regionId === "study_area" ? "the whole study area" : regionId === "custom" ? "your selected area" : (meta.regions.find((r) => r.id === regionId)?.name ?? regionId);
+  const regionName =
+    regionId === "study_area"
+      ? meta.sector
+        ? (meta.regions.find((r) => r.id === "study_area")?.name ?? "the whole sector")
+        : "the whole study area"
+      : regionId === "custom"
+        ? "your selected area"
+        : (meta.regions.find((r) => r.id === regionId)?.name ?? regionId);
+  const named = meta.regions.filter((r) => r.id !== "study_area" && r.id !== "custom");
 
   const info = useMemo(() => {
     const v = avg(s.harm, t);
@@ -183,6 +200,47 @@ export function Overview({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
   const level = levelFor(info.p);
   const events = useMemo(() => [...meta.events].sort((a, b) => b.total - a.total).slice(0, 6), [meta.events]);
   const wide = typeof window !== "undefined" && window.innerWidth > 1100;
+
+  // ---- Fire Wire: live planet-wide headlines that fly the globe
+  const feed = useWorldFeed();
+  const world = useMemo(
+    () => (feed.world && feed.grid ? summarizeWorld(feed.world, feed.grid, nav?.sectors ?? [], nav?.current) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [feed.world, feed.grid],
+  );
+  const [worldOn, setWorldOn] = useState(false);
+  const [idx, setIdx] = useState(0);
+  const [tour, setTour] = useState(false);
+  const [focus, setFocus] = useState<MapFocus | null>(null);
+  const dwell = tour ? 11 : 8;
+  const heads = world?.headlines ?? [];
+  const flyTo = (h: { id: string; lon: number; lat: number; zoom: number }, label?: string) => {
+    setWorldOn(true);
+    setFocus({ key: `${h.id}-${Date.now()}`, lon: h.lon, lat: h.lat, zoom: h.zoom, label });
+  };
+  const labelOf = (h: Headline) => (h.id === "planet" ? undefined : h.id === "fierce" ? "Most intense" : h.title.split(":")[0]);
+  const pickHead = (i: number) => {
+    const h = heads[i];
+    if (!h) return;
+    setIdx(i);
+    flyTo(h, labelOf(h));
+  };
+  const backToArchive = () => {
+    setWorldOn(false);
+    setTour(false);
+  };
+  // the reel advances on its own; on tour every headline also moves the camera
+  useEffect(() => {
+    if (!heads.length) return;
+    const id = setTimeout(() => {
+      const next = (idx + 1) % heads.length;
+      if (tour) pickHead(next);
+      else setIdx(next);
+    }, dwell * 1000);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx, tour, heads.length]);
+  const updated = feed.world?.latest ? `${feed.world.latest.slice(11, 16)} UTC` : null;
 
   const story = info.none
     ? `No sensor reported data for ${regionName} around this date.`
@@ -208,30 +266,53 @@ export function Overview({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
           nav={false}
           globe
           highlights={3}
+          worldCols={world?.columns ?? null}
+          worldOn={worldOn}
+          focus={focus}
           padding={wide ? { left: 380, right: 380, top: 70, bottom: 150 } : 16}
         />
       </div>
 
       <div className="ov-tools glass">
-        <div className="seg" role="group" aria-label="Map style">
-          <button className={m.mapMode === "heat" ? "on" : ""} onClick={() => m.setMapMode("heat")}>
-            Heat
+        <div className="seg" role="group" aria-label="What the globe shows">
+          <button className={!worldOn ? "on" : ""} onClick={backToArchive}>
+            Archive
           </button>
-          <button className={m.mapMode === "cells" ? "on" : ""} onClick={() => m.setMapMode("cells")}>
-            Grid
+          <button
+            className={worldOn ? "on live" : ""}
+            disabled={!world}
+            onClick={() => (worldOn ? undefined : pickHead(0))}
+            title={world ? "Every fire detected on Earth in the last 48 hours" : "Live feed not available"}
+          >
+            ● Live Earth
           </button>
         </div>
-        <button
-          className={`tool ${m.drawing ? "on" : ""}`}
-          onClick={() => {
-            m.setDrawing(!m.drawing);
-            m.setDrawMsg(null);
-          }}
-          aria-pressed={m.drawing}
-        >
-          ⛶ {m.drawing ? "Cancel" : m.aoi ? "Redraw area" : "Select area"}
-        </button>
-        {m.aoi && (
+        {!worldOn && (
+          <div className="seg" role="group" aria-label="Map style">
+            <button className={m.mapMode === "columns" ? "on" : ""} onClick={() => m.setMapMode("columns")}>
+              3D
+            </button>
+            <button className={m.mapMode === "heat" ? "on" : ""} onClick={() => m.setMapMode("heat")}>
+              Heat
+            </button>
+            <button className={m.mapMode === "cells" ? "on" : ""} onClick={() => m.setMapMode("cells")}>
+              Grid
+            </button>
+          </div>
+        )}
+        {!worldOn && (
+          <button
+            className={`tool ${m.drawing ? "on" : ""}`}
+            onClick={() => {
+              m.setDrawing(!m.drawing);
+              m.setDrawMsg(null);
+            }}
+            aria-pressed={m.drawing}
+          >
+            ⛶ {m.drawing ? "Cancel" : m.aoi ? "Redraw area" : "Select area"}
+          </button>
+        )}
+        {m.aoi && !worldOn && (
           <button className="tool" onClick={m.clearArea}>
             ✕ Clear
           </button>
@@ -241,6 +322,71 @@ export function Overview({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
         <div className="ov-note mono">{m.drawMsg ?? `YOUR AREA · ${m.area!.totalCells} GRID CELLS · WEEKLY VALUES · NO UNCERTAINTY RANGE`}</div>
       )}
 
+      <FireWire
+        headlines={heads}
+        index={Math.min(idx, Math.max(0, heads.length - 1))}
+        dwell={dwell}
+        tour={tour}
+        worldOn={worldOn}
+        status={world ? "ready" : feed.error ? "error" : "loading"}
+        updated={updated}
+        onPick={pickHead}
+        onTour={(on) => {
+          setTour(on);
+          if (on) pickHead(idx);
+        }}
+        onOpenSector={nav ? (id) => (id === nav.current ? backToArchive() : nav.onOpen(id)) : undefined}
+      />
+
+      {worldOn && world && (
+        <aside className="ov-col ov-right">
+          <div className="hud-panel glass world-panel">
+            <div className="panel-head">
+              <span className="mono">LIVE EARTH · LAST {world.hours} H</span>
+              <span className="mono dim">VIIRS NRT</span>
+            </div>
+            <div className="wl-total">
+              <Ticker text={String(fmtNum(world.total))} />
+            </div>
+            <p className="wl-note">
+              fire detections by NOAA-20 and NOAA-21 across the whole planet, one column per 0.5° cell. A detection is a thermal anomaly seen from orbit, not a
+              confirmed fire.
+            </p>
+          </div>
+          <div className="hud-panel glass">
+            <div className="panel-head">
+              <span className="mono">MOST ACTIVE COUNTRIES</span>
+              <span className="mono dim">CLICK TO FLY</span>
+            </div>
+            <ul className="wl-list">
+              {world.countries.slice(0, 12).map((c, i) => (
+                <li key={c.name}>
+                  <button
+                    className={focus?.label === c.name ? "on" : ""}
+                    onClick={() => {
+                      setTour(false);
+                      flyTo({ id: c.name, lon: c.top.lon, lat: c.top.lat, zoom: 4.2 }, c.name);
+                    }}
+                  >
+                    <span className="rk mono">{String(i + 1).padStart(2, "0")}</span>
+                    <span>{c.name}</span>
+                    <b>{fmtNum(c.n)}</b>
+                    <i className="bar" style={{ transform: `scaleX(${c.n / world.countries[0].n})` }} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="hud-panel glass link-panel">
+            <button onClick={backToArchive}>
+              <span className="mono">BACK</span> To the {meta.sector?.name ?? "Southeast Asia"} archive <i>→</i>
+            </button>
+          </div>
+        </aside>
+      )}
+
+      {!worldOn && (
+      <>
       <aside className="ov-col ov-left">
         <div className="hud-panel glass kpis">
           <div className="kpi">
@@ -261,13 +407,24 @@ export function Overview({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
           </div>
         </div>
 
-        <div className="hud-panel glass">
-          <div className="panel-head">
-            <span className="mono">WHERE IT IS BURNING</span>
-            <span className="mono dim">7-DAY MEAN</span>
+        {named.length > 1 ? (
+          <div className="hud-panel glass">
+            <div className="panel-head">
+              <span className="mono">WHERE IT IS BURNING</span>
+              <span className="mono dim">7-DAY MEAN</span>
+            </div>
+            <Donut m={m} />
           </div>
-          <Donut m={m} />
-        </div>
+        ) : (
+          <div className="hud-panel glass">
+            <div className="panel-head">
+              <span className="mono">SECTOR</span>
+              <span className="mono dim">{meta.cell}° GRID</span>
+            </div>
+            <h3 className="sector-title">{meta.sector?.name ?? named[0]?.name}</h3>
+            <p className="ov-prov">{meta.sector?.story}</p>
+          </div>
+        )}
 
         <div className="hud-panel glass">
           <div className="panel-head">
@@ -278,7 +435,7 @@ export function Overview({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
         </div>
 
         <div className="hud-panel glass legend-panel">
-          <MapLegend />
+          <MapLegend cell={meta.cell} />
         </div>
       </aside>
 
@@ -353,6 +510,8 @@ export function Overview({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
           <div className="tl-date">{fmtDate(dateAt(meta.start, week * 7))}</div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

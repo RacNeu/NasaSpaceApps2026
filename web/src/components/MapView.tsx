@@ -3,12 +3,13 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Dataset } from "../types";
 import type { Aoi } from "../aoi";
+import { viewBox } from "../sectorViews";
 
 interface Props {
   data: Dataset;
   week: number;
   regionId: string;
-  mode?: "heat" | "cells";
+  mode?: MapMode;
   /** The user's selected area, drawn as an outline. */
   aoi?: Aoi | null;
   /** While true, dragging on the map draws a rectangle instead of panning. */
@@ -22,7 +23,22 @@ interface Props {
   globe?: boolean;
   /** Number of pulsing markers placed on the hottest cells of the week. */
   highlights?: number;
+  /** Live columns for the whole planet; shown instead of the sector archive while worldOn is true. */
+  worldCols?: GeoJSON.FeatureCollection | null;
+  worldOn?: boolean;
+  /** Where the camera should fly next; a new key triggers a new flight. */
+  focus?: MapFocus | null;
 }
+
+export interface MapFocus {
+  key: string | number;
+  lon: number;
+  lat: number;
+  zoom: number;
+  label?: string;
+}
+
+export type MapMode = "columns" | "heat" | "cells";
 
 const rectFeature = (b: Aoi | null): GeoJSON.FeatureCollection => ({
   type: "FeatureCollection",
@@ -45,7 +61,7 @@ const RAMP: [number, string][] = [
   [150, "#fef3c7"],
 ];
 
-export function MapLegend() {
+export function MapLegend({ cell = 0.5 }: { cell?: number }) {
   return (
     <div className="map-legend" aria-label="Map legend">
       <div className="legend-title">Detections per week</div>
@@ -55,20 +71,21 @@ export function MapLegend() {
         <span>15</span>
         <span>150+</span>
       </div>
-      <div className="legend-note">VIIRS-equivalent, 0.5° cells</div>
+      <div className="legend-note">VIIRS-equivalent, {cell}° cells</div>
     </div>
   );
 }
 
-export function MapView({ data, week, regionId, mode = "heat", aoi = null, drawing = false, onDraw, padding = 12, nav = true, globe = false, highlights = 0 }: Props) {
+export function MapView({ data, week, regionId, mode = "columns", aoi = null, drawing = false, onDraw, padding = 12, nav = true, globe = false, highlights = 0, worldCols = null, worldOn = false, focus = null }: Props) {
+  const focusMarker = useRef<maplibregl.Marker | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const ready = useRef(false);
   const popup = useRef<maplibregl.Popup | null>(null);
   const { meta, grid } = data;
-  const latest = useRef({ week, regionId, mode, aoi, onDraw });
-  latest.current = { week, regionId, mode, aoi, onDraw };
+  const latest = useRef({ week, regionId, mode, aoi, onDraw, worldOn });
+  latest.current = { week, regionId, mode, aoi, onDraw, worldOn };
   const [loaded, setLoaded] = useState(false);
   const [settled, setSettled] = useState(false);
   const [baseFailed, setBaseFailed] = useState(false);
@@ -87,9 +104,46 @@ export function MapView({ data, week, regionId, mode = "heat", aoi = null, drawi
     return { type: "FeatureCollection", features };
   };
 
-  const applyMode = (m: maplibregl.Map, md: "heat" | "cells") => {
-    if (m.getLayer("fires-heat")) m.setLayoutProperty("fires-heat", "visibility", md === "heat" ? "visible" : "none");
-    if (m.getLayer("fires-fill")) m.setLayoutProperty("fires-fill", "visibility", md === "cells" ? "visible" : "none");
+  // column height in metres: the square root keeps quiet cells visible next to extreme ones
+  const heightOf = (v: number) => Math.sqrt(v) * (meta.cell >= 1 ? 7000 : 5000);
+
+  /** Each cell as an inset square, so neighbouring columns read as separate towers. */
+  const weekColumns = (w: number): GeoJSON.FeatureCollection => {
+    const row = grid.data[w] ?? [];
+    const inset = meta.cell * 0.14;
+    const features: GeoJSON.Feature[] = [];
+    for (let i = 0; i < row.length; i += 2) {
+      const [cx, cy, rg] = grid.cells[row[i]];
+      const v = row[i + 1];
+      const x0 = meta.box[0] + cx * meta.cell + inset;
+      const y0 = meta.box[1] + cy * meta.cell + inset;
+      const x1 = x0 + meta.cell - 2 * inset;
+      const y1 = y0 + meta.cell - 2 * inset;
+      features.push({
+        type: "Feature",
+        properties: { v, h: heightOf(v), region: rg >= 0 ? meta.regions[rg]?.name ?? "" : "" },
+        geometry: { type: "Polygon", coordinates: [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]] },
+      });
+    }
+    return { type: "FeatureCollection", features };
+  };
+
+  const applyMode = (m: maplibregl.Map, md: MapMode, animate = true) => {
+    const vis = (id: string, on: boolean) => m.getLayer(id) && m.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+    // the world layer replaces the sector archive while it is on
+    const arch = !latest.current.worldOn;
+    vis("fires-heat", arch && md !== "cells");
+    vis("fires-fill", arch && md === "cells");
+    vis("fires-cols", arch && md === "columns");
+    for (const id of ["regions-fill", "regions-fill-hi", "regions-glow", "regions-line", "regions-hi"]) vis(id, arch);
+    vis("world-cols", !arch);
+    if (!arch) return;
+    // under the columns the heat becomes a soft ground glow, never a white blob
+    if (m.getLayer("fires-heat")) {
+      m.setPaintProperty("fires-heat", "heatmap-opacity", md === "columns" ? 0.45 : 0.95);
+      m.setPaintProperty("fires-heat", "heatmap-intensity", md === "columns" ? 0.55 : (["interpolate", ["linear"], ["zoom"], 3, 0.9, 6, 1.7] as any));
+    }
+    if (globe && animate) m.easeTo({ pitch: md === "columns" ? 52 : 0, duration: 1400 });
   };
 
   const cellFeature = (ci: number, v: number): GeoJSON.Feature => {
@@ -114,10 +168,11 @@ export function MapView({ data, week, regionId, mode = "heat", aoi = null, drawi
 
   useEffect(() => {
     if (!el.current || map.current) return;
-    const [w, s, e, n] = meta.box;
+    // frame the part of the sector where fires happen
+    const [w, s, e, n] = viewBox(meta);
     const m = new maplibregl.Map({
       container: el.current,
-      ...(globe ? { center: [128, 14] as [number, number], zoom: 0.6 } : { bounds: [[w, s], [e, n]] as [[number, number], [number, number]], fitBoundsOptions: { padding } }),
+      ...(globe ? { center: [(w + e) / 2, (s + n) / 2 + 8] as [number, number], zoom: 0.6 } : { bounds: [[w, s], [e, n]] as [[number, number], [number, number]], fitBoundsOptions: { padding } }),
       attributionControl: { compact: true },
       style: {
         version: 8,
@@ -176,6 +231,7 @@ export function MapView({ data, week, regionId, mode = "heat", aoi = null, drawi
     m.on("load", () => {
       m.addSource("fires", { type: "geojson", data: weekCollection(latest.current.week) });
       m.addSource("firepts", { type: "geojson", data: weekPoints(latest.current.week) });
+      m.addSource("cols", { type: "geojson", data: weekColumns(latest.current.week) });
       m.addLayer({
         id: "fires-heat",
         type: "heatmap",
@@ -207,7 +263,6 @@ export function MapView({ data, week, regionId, mode = "heat", aoi = null, drawi
           "fill-opacity": 0.85,
         },
       });
-      applyMode(m, latest.current.mode);
       const regionLines: GeoJSON.FeatureCollection = {
         type: "FeatureCollection",
         features: meta.regions
@@ -248,6 +303,35 @@ export function MapView({ data, week, regionId, mode = "heat", aoi = null, drawi
         paint: { "line-color": ["get", "color"], "line-width": 2.6, "line-opacity": 1 },
       });
       m.addLayer({ id: "labels", type: "raster", source: "labels", paint: { "raster-opacity": 0.8 } });
+      // 3D fire columns: height and colour both follow the week's detections
+      m.addLayer({
+        id: "fires-cols",
+        type: "fill-extrusion",
+        source: "cols",
+        paint: {
+          "fill-extrusion-color": ["interpolate", ["linear"], ["get", "v"], 1, "#7a2a14", 15, "#F05A42", 60, "#FF9D43", 250, "#FFD9A0", 1200, "#FFF6E6"] as any,
+          "fill-extrusion-height": ["get", "h"] as any,
+          "fill-extrusion-base": 0,
+          "fill-extrusion-opacity": 0.9,
+          "fill-extrusion-vertical-gradient": true,
+        },
+      });
+      // the whole planet's live detections, one column per 0.5 degree cell
+      m.addSource("world", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      m.addLayer({
+        id: "world-cols",
+        type: "fill-extrusion",
+        source: "world",
+        layout: { visibility: "none" },
+        paint: {
+          "fill-extrusion-color": ["interpolate", ["linear"], ["get", "v"], 1, "#8a2f16", 6, "#F05A42", 30, "#FF9D43", 150, "#FFD9A0", 500, "#FFF6E6"] as any,
+          "fill-extrusion-height": ["get", "h"] as any,
+          "fill-extrusion-base": 0,
+          "fill-extrusion-opacity": 0.92,
+          "fill-extrusion-vertical-gradient": true,
+        },
+      });
+      applyMode(m, latest.current.mode, false);
       m.addSource("aoi", { type: "geojson", data: rectFeature(latest.current.aoi) });
       m.addLayer({ id: "aoi-fill", type: "fill", source: "aoi", paint: { "fill-color": "#ffffff", "fill-opacity": 0.07 } });
       m.addLayer({ id: "aoi-glow", type: "line", source: "aoi", paint: { "line-color": "#45B8D1", "line-width": 7, "line-blur": 6, "line-opacity": 0.6 } });
@@ -257,6 +341,10 @@ export function MapView({ data, week, regionId, mode = "heat", aoi = null, drawi
       if (globe) {
         const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         m.fitBounds([[w, s], [e, n]], { padding, duration: still ? 0 : 3200, essential: true });
+        // once the fly-in lands, tilt the camera so the columns stand up
+        m.once("moveend", () => {
+          if (latest.current.mode === "columns") m.easeTo({ pitch: 52, duration: still ? 0 : 1600 });
+        });
       }
 
       popup.current = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 8 });
@@ -268,6 +356,32 @@ export function MapView({ data, week, regionId, mode = "heat", aoi = null, drawi
           .setLngLat(ev.lngLat)
           .setHTML(`<strong>${Math.round(Number(f.properties?.v))}</strong> detections this week<br/><span>${f.properties?.region}</span>`)
           .addTo(m);
+      });
+      m.on("mousemove", "fires-cols", (ev) => {
+        const f = ev.features?.[0];
+        if (!f) return;
+        m.getCanvas().style.cursor = "pointer";
+        popup.current!
+          .setLngLat(ev.lngLat)
+          .setHTML(`<strong>${Math.round(Number(f.properties?.v)).toLocaleString("en-US")}</strong> detections this week${f.properties?.region ? `<br/><span>${f.properties.region}</span>` : ""}`)
+          .addTo(m);
+      });
+      m.on("mousemove", "world-cols", (ev) => {
+        const f = ev.features?.[0];
+        if (!f) return;
+        m.getCanvas().style.cursor = "pointer";
+        popup.current!
+          .setLngLat(ev.lngLat)
+          .setHTML(`<strong>${Math.round(Number(f.properties?.v)).toLocaleString("en-US")}</strong> detections, last 48 h${f.properties?.country ? `<br/><span>${f.properties.country}</span>` : ""}`)
+          .addTo(m);
+      });
+      m.on("mouseleave", "world-cols", () => {
+        m.getCanvas().style.cursor = "";
+        popup.current?.remove();
+      });
+      m.on("mouseleave", "fires-cols", () => {
+        m.getCanvas().style.cursor = "";
+        popup.current?.remove();
       });
       m.on("mouseleave", "fires-fill", () => {
         m.getCanvas().style.cursor = "";
@@ -345,6 +459,7 @@ export function MapView({ data, week, regionId, mode = "heat", aoi = null, drawi
     if (!m || !ready.current) return;
     (m.getSource("fires") as maplibregl.GeoJSONSource | undefined)?.setData(weekCollection(week));
     (m.getSource("firepts") as maplibregl.GeoJSONSource | undefined)?.setData(weekPoints(week));
+    (m.getSource("cols") as maplibregl.GeoJSONSource | undefined)?.setData(weekColumns(week));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [week]);
 
@@ -367,7 +482,7 @@ export function MapView({ data, week, regionId, mode = "heat", aoi = null, drawi
     const m = map.current;
     markers.current.forEach((k) => k.remove());
     markers.current = [];
-    if (!m || !loaded || highlights <= 0) return;
+    if (!m || !loaded || highlights <= 0 || worldOn) return;
     const row = grid.data[week] ?? [];
     const cells: { lon: number; lat: number; v: number }[] = [];
     for (let i = 0; i < row.length; i += 2) {
@@ -392,7 +507,59 @@ export function MapView({ data, week, regionId, mode = "heat", aoi = null, drawi
       markers.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [week, loaded, highlights]);
+  }, [week, loaded, highlights, worldOn]);
+
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !loaded) return;
+    (m.getSource("world") as maplibregl.GeoJSONSource | undefined)?.setData(worldCols ?? { type: "FeatureCollection", features: [] });
+  }, [worldCols, loaded]);
+
+  // switching between the sector archive and the live planet
+  const firstWorld = useRef(true);
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !loaded) return;
+    applyMode(m, mode, false);
+    if (firstWorld.current) {
+      firstWorld.current = false;
+      return;
+    }
+    if (!worldOn) {
+      focusMarker.current?.remove();
+      const [w, s, e, n] = viewBox(meta);
+      m.fitBounds([[w, s], [e, n]], { padding, duration: 2600, essential: true });
+      m.once("moveend", () => {
+        if (latest.current.mode === "columns" && !latest.current.worldOn) m.easeTo({ pitch: 52, duration: 1200 });
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [worldOn, loaded]);
+
+  // fly to a headline
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !loaded || !focus) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    m.flyTo({
+      center: [focus.lon, focus.lat],
+      zoom: focus.zoom,
+      pitch: focus.zoom > 2 ? 55 : 20,
+      bearing: focus.zoom > 2 ? -18 + ((Math.abs(focus.lon * 7) % 36)) : 0,
+      duration: still ? 0 : 4200,
+      curve: 1.6,
+      essential: true,
+    });
+    focusMarker.current?.remove();
+    focusMarker.current = null;
+    if (focus.label) {
+      const el = document.createElement("div");
+      el.className = "hot-marker wire-marker";
+      el.innerHTML = `<i></i><i></i><b></b><span>${focus.label}</span>`;
+      focusMarker.current = new maplibregl.Marker({ element: el }).setLngLat([focus.lon, focus.lat]).addTo(m);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus?.key, loaded]);
 
   return (
     <>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Dataset, Extras } from "./types";
-import { loadAll, type FileKey } from "./data";
+import { loadAll, loadSector, type FileKey, type SectorEntry } from "./data";
+import { SectorPicker } from "./components/SectorPicker";
 import { Intro } from "./Intro";
 import { audio } from "./audio";
 import { useAudioOn, useReducedMotion } from "./hooks";
@@ -40,7 +41,36 @@ const fromHash = (): ViewId => {
   return (VIEWS.find((v) => v.id === h)?.id ?? "overview") as ViewId;
 };
 
-function Console({ data, extras }: { data: Dataset; extras: Extras }) {
+interface SectorCtx {
+  sectors: SectorEntry[];
+  sector: SectorEntry;
+  loading: string | null;
+  onPick: (s: SectorEntry) => void;
+}
+
+/** Shown on the views that only exist for the detailed sector. */
+function DetailedOnly({ ctx, what }: { ctx: SectorCtx; what: string }) {
+  const sea = ctx.sectors.find((x) => x.detailed);
+  return (
+    <div className="view-pad">
+      <div className="detailed-only glass">
+        <div className="scene-code mono">AVAILABLE IN THE DETAILED SECTOR</div>
+        <h2>{what}</h2>
+        <p className="lede">
+          This analysis matches individual MODIS and VIIRS detections and draws them at true pixel size on real satellite imagery. It has been run
+          for Southeast Asia so far. Every other view works for {ctx.sector.name}.
+        </p>
+        {sea && (
+          <button className="btn-primary" onClick={() => ctx.onPick(sea)}>
+            Switch to {sea.short}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Console({ data, extras, ctx }: { data: Dataset; extras: Extras; ctx: SectorCtx }) {
   const m = useMission(data, extras);
   const reduced = useReducedMotion();
   const soundOn = useAudioOn();
@@ -116,7 +146,8 @@ function Console({ data, extras }: { data: Dataset; extras: Extras }) {
               <Scramble text={def.title} />
             </h1>
           </div>
-          {def.regions && (
+          <SectorPicker sectors={ctx.sectors} current={ctx.sector} loading={ctx.loading} onPick={ctx.onPick} />
+          {def.regions && m.view.meta.regions.filter((r) => r.id !== "study_area").length > 1 && (
             <div className="tb-regions" role="group" aria-label="Region">
               {m.view.meta.regions.map((r) => (
                 <button key={r.id} className={`tb-pill ${m.regionId === r.id ? "on" : ""}`} onClick={() => m.setRegionId(r.id)}>
@@ -160,12 +191,37 @@ function Console({ data, extras }: { data: Dataset; extras: Extras }) {
 
         <div className="stage">
           <div className={`view v-${viewId}`} key={viewId}>
-            {viewId === "overview" && <Overview m={m} go={go} />}
+            {viewId === "overview" && (
+              <Overview
+                m={m}
+                go={go}
+                nav={{
+                  sectors: ctx.sectors,
+                  current: ctx.sector.id,
+                  onOpen: (id) => {
+                    const s = ctx.sectors.find((x) => x.id === id);
+                    if (s && s.id !== ctx.sector.id) ctx.onPick(s);
+                  },
+                }}
+              />
+            )}
             {viewId === "live" && <Live m={m} go={go} />}
             {viewId === "record" && <Record m={m} />}
-            {viewId === "satellites" && <Satellites data={data} />}
-            {viewId === "detection" && <Detection demos={extras.demos} />}
-            {viewId === "harmonize" && <Harmonization demos={extras.demos} matching={extras.matching} />}
+            {viewId === "satellites" && (
+              <Satellites
+                data={data}
+                nav={{
+                  sectors: ctx.sectors,
+                  current: ctx.sector.id,
+                  onOpen: (s) => {
+                    go("overview");
+                    if (s.id !== ctx.sector.id) ctx.onPick(s);
+                  },
+                }}
+              />
+            )}
+            {viewId === "detection" && (ctx.sector.detailed ? <Detection demos={extras.demos} ratio={data.meta.calibration.study_area?.raw_viirs_to_modis_ratio ?? undefined} /> : <DetailedOnly ctx={ctx} what="Detection, pixel by pixel" />)}
+            {viewId === "harmonize" && (ctx.sector.detailed ? <Harmonization demos={extras.demos} matching={extras.matching} /> : <DetailedOnly ctx={ctx} what="Detection-level matching" />)}
             {viewId === "insights" && <Insights m={m} go={go} />}
             {viewId === "method" && <Method m={m} />}
           </div>
@@ -178,31 +234,100 @@ function Console({ data, extras }: { data: Dataset; extras: Extras }) {
         </div>
       </div>
 
+      {ctx.loading && (
+        <div className="warp" aria-live="polite">
+          <div className="boot-radar" aria-hidden>
+            <i />
+            <i />
+            <i />
+            <b />
+          </div>
+          <div className="mono warp-t">ACQUIRING SECTOR · {ctx.loading.toUpperCase()}</div>
+        </div>
+      )}
     </div>
   );
 }
 
+const sectorFromUrl = () => new URLSearchParams(window.location.search).get("sector") ?? "sea";
+
 export default function App() {
   const reduced = useReducedMotion();
   const [loaded, setLoaded] = useState<Set<FileKey>>(() => new Set());
-  const [bundle, setBundle] = useState<{ data: Dataset; extras: Extras } | null>(null);
+  const [boot, setBoot] = useState<{ extras: Extras; sectors: SectorEntry[] } | null>(null);
+  const [bundles, setBundles] = useState<Record<string, Dataset>>({});
+  const [sectorId, setSectorId] = useState(sectorFromUrl);
+  const [loadingSector, setLoadingSector] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [introDone, setIntroDone] = useState(false);
 
   useEffect(() => {
     loadAll((key) => setLoaded((prev) => new Set(prev).add(key)))
-      .then(setBundle)
+      .then(({ data, extras, sectors }) => {
+        setBundles({ sea: data });
+        setBoot({ extras, sectors });
+      })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
+  const pick = useCallback(
+    async (s: SectorEntry) => {
+      const setUrl = () => {
+        const u = new URL(window.location.href);
+        if (s.id === "sea") u.searchParams.delete("sector");
+        else u.searchParams.set("sector", s.id);
+        window.history.replaceState(null, "", u.toString());
+      };
+      if (bundles[s.id]) {
+        setSectorId(s.id);
+        setUrl();
+        audio.sweep();
+        return;
+      }
+      setLoadingSector(s.short);
+      try {
+        const d = await loadSector(s);
+        setBundles((b) => ({ ...b, [s.id]: d }));
+        setSectorId(s.id);
+        setUrl();
+        audio.sweep();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setLoadingSector(null);
+      }
+    },
+    [bundles],
+  );
+
+  // a shared link may point straight at another sector
+  useEffect(() => {
+    if (!boot || bundles[sectorId]) return;
+    const s = boot.sectors.find((x) => x.id === sectorId);
+    if (s) pick(s);
+    else setSectorId("sea");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boot]);
+
+  const sector = boot?.sectors.find((x) => x.id === sectorId) ?? boot?.sectors[0];
+  const data = bundles[sectorId] ?? bundles.sea;
+  const shown = sector && bundles[sectorId] ? sector : boot?.sectors.find((x) => x.id === "sea") ?? sector;
+
   return (
     <>
-      {bundle && revealed && <Console data={bundle.data} extras={bundle.extras} />}
+      {boot && data && shown && revealed && (
+        <Console
+          key={shown.id}
+          data={data}
+          extras={boot.extras}
+          ctx={{ sectors: boot.sectors, sector: shown, loading: loadingSector, onPick: pick }}
+        />
+      )}
       {!introDone && (
         <Intro
           loaded={loaded}
-          ready={!!bundle}
+          ready={!!boot}
           error={error}
           reduced={reduced}
           onReveal={() => setRevealed(true)}
