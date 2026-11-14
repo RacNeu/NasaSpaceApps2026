@@ -1,14 +1,33 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Dataset } from "../types";
+import type { Aoi } from "../aoi";
 
 interface Props {
   data: Dataset;
   week: number;
   regionId: string;
   mode?: "heat" | "cells";
+  /** The user's selected area, drawn as an outline. */
+  aoi?: Aoi | null;
+  /** While true, dragging on the map draws a rectangle instead of panning. */
+  drawing?: boolean;
+  onDraw?: (box: Aoi) => void;
 }
+
+const rectFeature = (b: Aoi | null): GeoJSON.FeatureCollection => ({
+  type: "FeatureCollection",
+  features: b
+    ? [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "Polygon", coordinates: [[[b.west, b.south], [b.east, b.south], [b.east, b.north], [b.west, b.north], [b.west, b.south]]] },
+        },
+      ]
+    : [],
+});
 
 const RAMP: [number, string][] = [
   [1, "#4a2a1e"],
@@ -33,14 +52,17 @@ export function MapLegend() {
   );
 }
 
-export function MapView({ data, week, regionId, mode = "heat" }: Props) {
+export function MapView({ data, week, regionId, mode = "heat", aoi = null, drawing = false, onDraw }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const ready = useRef(false);
   const popup = useRef<maplibregl.Popup | null>(null);
   const { meta, grid } = data;
-  const latest = useRef({ week, regionId, mode });
-  latest.current = { week, regionId, mode };
+  const latest = useRef({ week, regionId, mode, aoi, onDraw });
+  latest.current = { week, regionId, mode, aoi, onDraw };
+  const [loaded, setLoaded] = useState(false);
+  const [settled, setSettled] = useState(false);
+  const [baseFailed, setBaseFailed] = useState(false);
 
   const weekPoints = (w: number): GeoJSON.FeatureCollection => {
     const row = grid.data[w] ?? [];
@@ -173,7 +195,12 @@ export function MapView({ data, week, regionId, mode = "heat" }: Props) {
         paint: { "line-color": ["get", "color"], "line-width": 2.6, "line-opacity": 1 },
       });
       m.addLayer({ id: "labels", type: "raster", source: "labels", paint: { "raster-opacity": 0.8 } });
+      m.addSource("aoi", { type: "geojson", data: rectFeature(latest.current.aoi) });
+      m.addLayer({ id: "aoi-fill", type: "fill", source: "aoi", paint: { "fill-color": "#ffffff", "fill-opacity": 0.07 } });
+      m.addLayer({ id: "aoi-glow", type: "line", source: "aoi", paint: { "line-color": "#45B8D1", "line-width": 7, "line-blur": 6, "line-opacity": 0.6 } });
+      m.addLayer({ id: "aoi-line", type: "line", source: "aoi", paint: { "line-color": "#ffffff", "line-width": 1.6, "line-dasharray": [3, 2] } });
       ready.current = true;
+      setLoaded(true);
 
       popup.current = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 8 });
       m.on("mousemove", "fires-fill", (ev) => {
@@ -190,6 +217,11 @@ export function MapView({ data, week, regionId, mode = "heat" }: Props) {
         popup.current?.remove();
       });
     });
+    m.once("idle", () => setSettled(true));
+    // if the basemap provider is unreachable the fire data still draws over the dark background
+    m.on("error", (e) => {
+      if ((e as any).sourceId === "base") setBaseFailed(true);
+    });
     map.current = m;
     return () => {
       m.remove();
@@ -198,6 +230,58 @@ export function MapView({ data, week, regionId, mode = "heat" }: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !loaded) return;
+    (m.getSource("aoi") as maplibregl.GeoJSONSource | undefined)?.setData(rectFeature(aoi));
+  }, [aoi, loaded]);
+
+  // draw-a-rectangle mode (mouse and touch)
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !loaded || !drawing) return;
+    m.dragPan.disable();
+    m.boxZoom.disable();
+    m.getCanvas().style.cursor = "crosshair";
+    let start: maplibregl.LngLat | null = null;
+    let last: maplibregl.LngLat | null = null;
+    const box = (): Aoi | null =>
+      start && last
+        ? { west: Math.min(start.lng, last.lng), east: Math.max(start.lng, last.lng), south: Math.min(start.lat, last.lat), north: Math.max(start.lat, last.lat) }
+        : null;
+    const down = (e: maplibregl.MapMouseEvent | maplibregl.MapTouchEvent) => {
+      e.preventDefault();
+      start = last = e.lngLat;
+    };
+    const move = (e: maplibregl.MapMouseEvent | maplibregl.MapTouchEvent) => {
+      if (!start) return;
+      last = e.lngLat;
+      (m.getSource("aoi") as maplibregl.GeoJSONSource | undefined)?.setData(rectFeature(box()));
+    };
+    const up = () => {
+      const b = box();
+      start = null;
+      if (b) latest.current.onDraw?.(b);
+    };
+    m.on("mousedown", down);
+    m.on("mousemove", move);
+    m.on("mouseup", up);
+    m.on("touchstart", down);
+    m.on("touchmove", move);
+    m.on("touchend", up);
+    return () => {
+      m.off("mousedown", down);
+      m.off("mousemove", move);
+      m.off("mouseup", up);
+      m.off("touchstart", down);
+      m.off("touchmove", move);
+      m.off("touchend", up);
+      m.dragPan.enable();
+      m.boxZoom.enable();
+      m.getCanvas().style.cursor = "";
+    };
+  }, [drawing, loaded]);
 
   useEffect(() => {
     const m = map.current;
@@ -219,5 +303,12 @@ export function MapView({ data, week, regionId, mode = "heat" }: Props) {
     if (m.getLayer("regions-hi")) m.setFilter("regions-hi", ["==", ["get", "id"], regionId]);
   }, [regionId]);
 
-  return <div ref={el} className="map" />;
+  return (
+    <>
+      <div ref={el} className="map" />
+      {!settled && <div className="map-status mono">LOADING MAP</div>}
+      {baseFailed && <div className="map-status warn mono">BASEMAP UNAVAILABLE · FIRE DATA STILL SHOWN</div>}
+      {drawing && <div className="map-status draw mono">DRAG ON THE MAP TO SELECT AN AREA</div>}
+    </>
+  );
 }

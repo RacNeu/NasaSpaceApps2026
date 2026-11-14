@@ -1,0 +1,130 @@
+/* Headline findings, the area picker, map status chips and the closing scene. Loaded after theme.css. */
+
+.headlines,
+.outlook-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 4px 0 26px;
+}
+.outlook-facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.headline {
+  padding: 16px 18px;
+}
+.headline-big {
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: clamp(26px, 2.6vw, 38px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+  white-space: nowrap;
+}
+.headline.amber .headline-big {
+  color: var(--amber);
+  text-shadow: 0 0 22px rgba(255, 157, 67, 0.4);
+}
+.headline.cyan .headline-big {
+  color: var(--cyan);
+  text-shadow: 0 0 22px rgba(69, 184, 209, 0.4);
+}
+.headline.fire .headline-big {
+  color: var(--fire);
+  text-shadow: 0 0 22px rgba(240, 90, 66, 0.45);
+}
+.headline-label {
+  font-size: 12.5px;
+  color: #b9c8d8;
+  line-height: 1.45;
+}
+@media (max-width: 1000px) {
+  .headlines {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .headlines,
+  .outlook-facts {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pill.draw {
+  border-style: dashed;
+  border-color: rgba(69, 184, 209, 0.55);
+  color: var(--cyan);
+}
+.pill.draw.on {
+  border-style: solid;
+  border-color: var(--cyan);
+  background: rgba(69, 184, 209, 0.14);
+  box-shadow: 0 0 18px rgba(69, 184, 209, 0.3);
+}
+.aoi-note {
+  font-size: 13px;
+  color: #b9c8d8;
+  border-left: 2px solid var(--cyan);
+  padding: 6px 12px;
+  margin: 0 0 12px;
+  max-width: 100ch;
+}
+.map-box.drawing {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 1px var(--cyan), 0 0 34px rgba(69, 184, 209, 0.3);
+}
+.map-status {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  z-index: 3;
+  font-size: 10px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: rgba(6, 11, 20, 0.82);
+  border: 1px solid rgba(69, 184, 209, 0.4);
+  color: var(--cyan);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.map-status.warn {
+  top: auto;
+  bottom: 12px;
+  color: var(--amber);
+  border-color: rgba(255, 157, 67, 0.5);
+}
+.map-status.draw {
+  color: #fff;
+  border-color: var(--cyan);
+  box-shadow: 0 0 16px rgba(69, 184, 209, 0.4);
+}
+
+.outlook-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+@media (max-width: 900px) {
+  .outlook-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.outlook-grid .who {
+  color: var(--amber);
+  font-size: 10px;
+  margin-bottom: 8px;
+}
+.outlook-grid p,
+.v-box.next li {
+  font-size: 14px;
+  color: #c4d2e0;
+}
+.outlook-cta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 26px;
+}

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { DemoDay, Matching } from "../types";
-import { useSeen } from "../hooks";
+import { useNear } from "../hooks";
 import { matchDetections } from "../match";
 import { HotspotMap, type HotspotView } from "./HotspotMap";
 import { FrpBars, OffsetHistogram, SweepGrid } from "./MatchCharts";
@@ -10,7 +10,7 @@ type Mode = "side" | "overlay" | "match";
 const pct = (v: number) => (Number.isFinite(v) ? `${Math.round(v * 100)}%` : "n/a");
 
 export function Harmonization({ demos, matching }: { demos: DemoDay[]; matching: Matching }) {
-  const [ref, seen] = useSeen<HTMLElement>("500px");
+  const [ref, seen] = useNear<HTMLElement>("600px");
   const [di, setDi] = useState(0);
   const [mode, setMode] = useState<Mode>("match");
   const [radius, setRadius] = useState(1);
@@ -113,8 +113,11 @@ export function Harmonization({ demos, matching }: { demos: DemoDay[]; matching:
         </div>
 
         <div className="scene-map">
-          {seen &&
-            (mode === "side" ? (
+          {!seen ? (
+            <div className="hs-map-wrap">
+              <div className="hs-map" />
+            </div>
+          ) : mode === "side" ? (
               <div className="split">
                 <HotspotMap key={`a${demo.id}`} demo={demo} view={viewMODIS} imagery="aqua" modisFlags={null} viirsFlags={null} syncId="harm" label="MODIS · 1 km · Aqua imagery" />
                 <HotspotMap key={`b${demo.id}`} demo={demo} view={viewVIIRS} imagery="noaa20" modisFlags={null} viirsFlags={null} syncId="harm" label="VIIRS · 375 m · NOAA-20 imagery" />
@@ -128,7 +131,7 @@ export function Harmonization({ demos, matching }: { demos: DemoDay[]; matching:
                 modisFlags={res.modis}
                 viirsFlags={res.viirs}
               />
-            ))}
+            )}
           <div className="map-key">
             {mode === "match" ? (
               <>

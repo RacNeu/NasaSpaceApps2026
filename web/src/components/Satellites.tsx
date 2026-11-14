@@ -1,7 +1,7 @@
 import { Suspense, lazy, useState } from "react";
 import type { Dataset } from "../types";
 import { audio } from "../audio";
-import { useSeen, useVisible } from "../hooks";
+import { useNear, useVisible } from "../hooks";
 import type { GlobeSat } from "./EarthGlobe";
 
 // three.js is large, so it is only downloaded when this scene comes near the viewport
@@ -59,7 +59,7 @@ SATS.forEach((s) => {
 
 export function Satellites({ data }: { data: Dataset }) {
   const [sel, setSel] = useState("aqua");
-  const [seenRef, seen] = useSeen<HTMLDivElement>("700px");
+  const [seenRef, seen] = useNear<HTMLDivElement>("700px");
   const [visRef, visible] = useVisible<HTMLDivElement>(0.05);
   const selected = SATS.find((s) => s.id === sel)!;
   const ph = physics(selected.altKm);

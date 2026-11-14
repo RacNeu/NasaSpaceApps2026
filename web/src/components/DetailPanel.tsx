@@ -23,7 +23,8 @@ const avg = (a: Float32Array, t: number, h = 3) => {
 export function DetailPanel({ data, regionId, t }: Props) {
   const { meta, daily, grid } = data;
   const s = daily.regions[regionId];
-  const regionName = regionId === "study_area" ? "the whole study area" : (meta.regions.find((r) => r.id === regionId)?.name ?? regionId);
+  const custom = regionId === "custom";
+  const regionName = regionId === "study_area" ? "the whole study area" : custom ? "your selected area" : (meta.regions.find((r) => r.id === regionId)?.name ?? regionId);
   const date = dateAt(meta.start, t);
 
   const info = useMemo(() => {
@@ -46,7 +47,7 @@ export function DetailPanel({ data, regionId, t }: Props) {
 
   const drivers = useMemo(() => {
     return meta.regions
-      .filter((r) => r.id !== "study_area")
+      .filter((r) => r.id !== "study_area" && r.id !== "custom")
       .map((r) => {
         const rs = daily.regions[r.id];
         const v = avg(rs.harm, t);
@@ -129,7 +130,12 @@ export function DetailPanel({ data, regionId, t }: Props) {
       )}
 
       <div className="provenance">
-        {info.none ? null : info.est ? (
+        {info.none ? null : custom ? (
+          <>
+            <b>{info.est ? "Estimated from MODIS." : "Observed by VIIRS."}</b> Your area is summed from the weekly 0.5° grid, so the value is a weekly
+            average and has no uncertainty range of its own.
+          </>
+        ) : info.est ? (
           <>
             <b>Estimated from MODIS.</b> VIIRS did not exist yet. The 80% range is {fmtNum(info.lo)} to {fmtNum(info.hi)} per day,
             from cross-validated errors in years where both sensors flew.
@@ -141,7 +147,7 @@ export function DetailPanel({ data, regionId, t }: Props) {
         )}
       </div>
 
-      <h4>Which regions are driving it</h4>
+      <h4>{custom ? "The four regions that week" : "Which regions are driving it"}</h4>
       <ul className="drivers">
         {drivers.map((d) => (
           <li key={d.id}>
@@ -172,7 +178,7 @@ export function DetailPanel({ data, regionId, t }: Props) {
         </>
       )}
 
-      {!info.none && (
+      {!info.none && !custom && (
         <>
           <h4>Why raw counts can't be compared</h4>
           <table className="mini">

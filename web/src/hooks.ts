@@ -34,6 +34,27 @@ export function useSeen<T extends HTMLElement>(margin = "300px") {
   return [ref, seen] as const;
 }
 
+/**
+ * True while the element is within `margin` of the viewport, and false again once it scrolls
+ * away. Used to mount WebGL maps only when they are needed, so the page never holds more than
+ * a few live contexts at once.
+ */
+export function useNear<T extends HTMLElement>(margin = "700px") {
+  // a callback ref, so the observer follows the element if it is unmounted and mounted again
+  const [el, setEl] = useState<T | null>(null);
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    if (!el) {
+      setNear(false);
+      return;
+    }
+    const io = new IntersectionObserver((es) => setNear(es[es.length - 1].isIntersecting), { rootMargin: margin });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [el, margin]);
+  return [setEl, near] as const;
+}
+
 /** True while the element is on screen. */
 export function useVisible<T extends HTMLElement>(threshold = 0.2) {
   const ref = useRef<T>(null);

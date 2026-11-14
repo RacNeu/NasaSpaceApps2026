@@ -7,6 +7,7 @@ import { Satellites } from "./components/Satellites";
 import { Detection } from "./components/Detection";
 import { Harmonization } from "./components/Harmonization";
 import { Findings } from "./components/Findings";
+import { Outlook } from "./components/Outlook";
 
 const SCENES: SceneDef[] = [
   { id: "intro", label: "Orbit", code: "01" },
@@ -14,6 +15,7 @@ const SCENES: SceneDef[] = [
   { id: "detection", label: "Detection", code: "03" },
   { id: "harmonization", label: "Harmonization", code: "04" },
   { id: "findings", label: "Findings", code: "05" },
+  { id: "outlook", label: "Why it matters", code: "06" },
 ];
 
 export default function App() {
@@ -50,6 +52,7 @@ export default function App() {
       <Detection demos={extras.demos} />
       <Harmonization demos={extras.demos} matching={extras.matching} />
       <Findings data={data} extras={extras} />
+      <Outlook data={data} />
       <footer className="site-foot">
         <div className="mono">MISSION IGNIS · NASA SPACE APPS CHALLENGE 2026</div>
         <p>

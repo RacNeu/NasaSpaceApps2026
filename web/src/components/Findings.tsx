@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Dataset, Extras } from "../types";
 import { audio } from "../audio";
-import { useSeen, useVisible } from "../hooks";
+import { useNear, useVisible } from "../hooks";
 import { dateAt, fmtDate, indexOf } from "../lib";
+import { buildAreaSeries, CUSTOM_ID, withArea, type Aoi } from "../aoi";
 import { MapLegend, MapView } from "./MapView";
 import { FireClock } from "./FireClock";
 import { CalendarHeatmap, HeatLegend, type HeatMode } from "./CalendarHeatmap";
@@ -21,10 +22,60 @@ const download = (name: string, mime: string, text: string) => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
+const pctText = (v: number | undefined) => (v === undefined ? "n/a" : `${Math.round(v * 100)}%`);
+
+/** Four numbers a skimming reader should leave with, all computed from the loaded data. */
+function Headlines({ data, extras }: { data: Dataset; extras: Extras }) {
+  const cal = data.meta.calibration.study_area;
+  const years = Object.keys(extras.matching.headline.by_year ?? {}).sort();
+  const y = years[0];
+  const h = y ? extras.matching.headline.by_year?.[y] : undefined;
+  const top = [...data.meta.events].sort((a, b) => b.total - a.total)[0];
+  const topLabel = top ? fmtDate(dateAt(data.meta.start, indexOf(data.meta.start, top.peak))).replace(/^\d+ /, "") : "n/a";
+  const items = [
+    {
+      big: cal.raw_viirs_to_modis_ratio ? `${cal.raw_viirs_to_modis_ratio.toFixed(1)}×` : "n/a",
+      tone: "amber",
+      label: "more hotspots reported by VIIRS than by MODIS over the same ground and days",
+    },
+    {
+      big: `${pctText(h?.aqua_in_viirs?.rate)} vs ${pctText(h?.viirs_in_aqua?.rate)}`,
+      tone: "cyan",
+      label: `of Aqua detections have a NOAA-20 partner, against the share of NOAA-20 detections with an Aqua partner (1 km, ±60 min, Aug to Oct ${y ?? ""})`,
+    },
+    {
+      big: `${Math.round(cal.cv_coverage_80 * 100)}%`,
+      tone: "amber",
+      label: "of weeks in years the model never saw fall inside its stated 80% range",
+    },
+    {
+      big: topLabel,
+      tone: "fire",
+      label: top?.times_normal ? `the largest episode in the record, ${top.times_normal}× the normal level for that time of year` : "the largest episode in the record",
+    },
+  ];
+  return (
+    <div className="headlines" aria-label="Key findings">
+      {items.map((it) => (
+        <div key={it.label} className={`headline glass ${it.tone}`}>
+          <div className="headline-big">{it.big}</div>
+          <div className="headline-label">{it.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function Findings({ data, extras }: { data: Dataset; extras: Extras }) {
   const { meta, daily } = data;
-  const [seenRef, seen] = useSeen<HTMLDivElement>("600px");
+  const [mapBoxRef, mapNear] = useNear<HTMLDivElement>("800px");
   const [visRef, visible] = useVisible<HTMLElement>(0.15);
+  const [aoi, setAoi] = useState<Aoi | null>(null);
+  const [drawing, setDrawing] = useState(false);
+  const [drawMsg, setDrawMsg] = useState<string | null>(null);
+  const area = useMemo(() => (aoi ? buildAreaSeries(data, aoi) : null), [data, aoi]);
+  // the same dataset with the user's area added as one more region
+  const view = useMemo(() => withArea(data, area), [data, area]);
   const [tab, setTab] = useState<Tab>("explore");
   const [regionId, setRegionId] = useState("study_area");
   const [t, setT] = useState(0);
@@ -77,8 +128,29 @@ export function Findings({ data, extras }: { data: Dataset; extras: Extras }) {
   const events = useMemo(() => [...meta.events].sort((a, b) => b.total - a.total).slice(0, 8), [meta.events]);
   const week = Math.min(Math.floor(t / 7), data.grid.weeks - 1);
 
+  const onDraw = (box: Aoi) => {
+    const res = buildAreaSeries(data, box);
+    if (!res) {
+      setDrawMsg("That selection is outside the study area. Try again inside the map's data.");
+      return;
+    }
+    setDrawMsg(null);
+    setAoi(res.snapped);
+    setRegionId(CUSTOM_ID);
+    setDrawing(false);
+    audio.ping(880);
+  };
+  const clearArea = () => {
+    setAoi(null);
+    setDrawing(false);
+    setDrawMsg(null);
+    if (regionId === CUSTOM_ID) setRegionId("study_area");
+  };
+  const isCustom = regionId === CUSTOM_ID && !!area;
+  const deg = (v: number, pos: string, neg: string) => `${Math.abs(v).toFixed(1)}°${v >= 0 ? pos : neg}`;
+
   const exportCsv = () => {
-    const s = daily.regions[regionId];
+    const s = view.daily.regions[regionId];
     const rows = ["date,region,harmonized_detections_per_day,lower_80,upper_80,source,percentile_vs_other_years,typical_per_day,modis_raw,suomi_npp_raw,noaa20_raw"];
     const num = (v: number) => (Number.isNaN(v) ? "" : String(Math.round(v * 10) / 10));
     for (let i = 0; i < daily.days; i++) {
@@ -104,6 +176,7 @@ export function Findings({ data, extras }: { data: Dataset; extras: Extras }) {
             Matching shows where the sensors agree. Counting over time needs more: each satellite is placed on one scale, MODIS is converted to the
             VIIRS scale where VIIRS did not yet exist, and every estimate carries an honest range. Explore 25 years of record below.
           </p>
+          <Headlines data={data} extras={extras} />
           <div className="tabs-row" role="tablist">
             {([["explore", "Explore the record"], ["validation", "Does it hold up?"], ["limits", "Method & limits"]] as [Tab, string][]).map(([k, label]) => (
               <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
@@ -125,17 +198,42 @@ export function Findings({ data, extras }: { data: Dataset; extras: Extras }) {
           </div>
           <div className="region-bar" role="group" aria-label="Region">
             <span className="label mono">REGION</span>
-            {meta.regions.map((r) => (
+            {view.meta.regions.map((r) => (
               <button key={r.id} className={`pill ${regionId === r.id ? "on" : ""}`} onClick={() => setRegionId(r.id)}>
                 <i style={{ background: r.color }} />
                 {r.name}
               </button>
             ))}
+            <button
+              className={`pill draw ${drawing ? "on" : ""}`}
+              onClick={() => {
+                setTab("explore");
+                setDrawing((d) => !d);
+                setDrawMsg(null);
+              }}
+              aria-pressed={drawing}
+            >
+              ⛶ {drawing ? "Cancel drawing" : aoi ? "Redraw your area" : "Select your own area"}
+            </button>
+            {aoi && (
+              <button className="pill" onClick={clearArea}>
+                ✕ Clear
+              </button>
+            )}
           </div>
+          {(drawing || drawMsg || isCustom) && (
+            <p className="aoi-note" aria-live="polite">
+              {drawMsg ??
+                (drawing
+                  ? "Drag a rectangle on the map below. The calendar, fire clock and chart will switch to that area."
+                  : area &&
+                    `Your area: ${deg(area.snapped.west, "E", "W")} to ${deg(area.snapped.east, "E", "W")}, ${deg(area.snapped.south, "N", "S")} to ${deg(area.snapped.north, "N", "S")} (${area.totalCells} grid cells, ${area.activeCells} with detections). Custom areas use weekly values from the 0.5° grid and have no uncertainty range.`)}
+            </p>
+          )}
         </div>
 
         {tab === "explore" && (
-          <div ref={seenRef}>
+          <div>
             <div className="episodes" aria-label="Major episodes">
               <span className="label mono">BIGGEST EPISODES</span>
               {events.map((ev) => (
@@ -172,8 +270,12 @@ export function Findings({ data, extras }: { data: Dataset; extras: Extras }) {
                     <span className="week-label mono">Week of {fmtDate(dateAt(meta.start, week * 7))}</span>
                   </div>
                 </div>
-                <div className="map-box">
-                  {seen && <MapView data={data} week={week} regionId={regionId} mode={mapMode} />}
+                <div className={`map-box ${drawing ? "drawing" : ""}`} ref={mapBoxRef}>
+                  {mapNear ? (
+                    <MapView data={data} week={week} regionId={regionId} mode={mapMode} aoi={area?.snapped ?? null} drawing={drawing} onDraw={onDraw} />
+                  ) : (
+                    <div className="map" />
+                  )}
                   <MapLegend />
                 </div>
                 <input className="slider" type="range" min={0} max={maxT} value={t} step={1} onChange={(e) => pick(Number(e.target.value))} aria-label="Date" />
@@ -188,7 +290,7 @@ export function Findings({ data, extras }: { data: Dataset; extras: Extras }) {
                   <h3>The fire clock</h3>
                   <span className="muted">every year, every week</span>
                 </div>
-                <FireClock data={data} regionId={regionId} t={t} onPick={pick} />
+                <FireClock data={view} regionId={regionId} t={t} onPick={pick} />
               </section>
             </div>
 
@@ -204,7 +306,7 @@ export function Findings({ data, extras }: { data: Dataset; extras: Extras }) {
                   </button>
                 </div>
               </div>
-              <CalendarHeatmap data={data} regionId={regionId} t={t} mode={mode} onPick={pick} />
+              <CalendarHeatmap data={view} regionId={regionId} t={t} mode={mode} onPick={pick} />
               <div className="heat-foot">
                 <HeatLegend mode={mode} />
                 <span className="muted">Rows marked ~ are mostly estimated from MODIS because VIIRS was not flying yet.</span>
@@ -216,14 +318,19 @@ export function Findings({ data, extras }: { data: Dataset; extras: Extras }) {
                 <div className="card-head">
                   <h3>One year, sensor by sensor</h3>
                 </div>
-                <YearChart data={data} regionId={regionId} t={t} onPick={pick} />
+                <YearChart data={view} regionId={regionId} t={t} onPick={pick} />
               </section>
-              <DetailPanel data={data} regionId={regionId} t={t} />
+              <DetailPanel data={view} regionId={regionId} t={t} />
             </div>
           </div>
         )}
 
-        {tab === "validation" && <Validation data={data} regionId={regionId} />}
+        {tab === "validation" && (
+          <>
+            {isCustom && <p className="aoi-note">Validation was run per region, so this tab shows the whole study area while your own area is selected.</p>}
+            <Validation data={data} regionId={isCustom ? "study_area" : regionId} />
+          </>
+        )}
 
         {tab === "limits" && (
           <div className="limits-grid">
