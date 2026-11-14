@@ -7,14 +7,21 @@ MODIS (1 km) and VIIRS (375 m) have watched Earth's fires for two decades, but t
 
 ## The experience
 
-| Scene | What happens |
+Ignis is a single-screen mission console, not a scrolling page. A rail on the left switches between seven views, and the motion lives in the transitions: a short power-on sequence, a scan line that sweeps the stage on every switch, a fly-in from orbit, and panels that slide into place.
+
+| View | What it shows |
 |---|---|
-| **01 Orbit** | Darkness, then NASA Blue Marble Earth rises. A satellite passes, and scrolling descends onto Borneo as fire cells ignite. Skippable, with optional generated sound. |
-| **02 Satellites** | A 3D Earth (NASA Blue Marble by day, VIIRS Black Marble city lights by night) with the five satellites on their inclined orbit planes. Drag to rotate and select a satellite for a mission-control readout. Orbital period and speed are computed from altitude with Kepler's third law; orbit heights are exaggerated on screen. |
-| **03 Detection** | One real day (14 Sep 2019 or 27 Sep 2023) over the true satellite photograph, with each hotspot drawn at its sensor's true pixel size. Scrub through the day to watch each satellite pass. A pixel lab shows how one 1 km MODIS pixel can hold several 375 m VIIRS pixels. |
-| **04 Harmonization** | Live detection matching with adjustable spatial and time tolerances: matched vs unmatched, overlay, or side by side. Three charts explain the result: tolerance sweep, why Terra is not paired, and which fires MODIS misses. |
-| **05 Findings** | Four headline numbers, then the calibrated 2001 to 2025 record (2001 to 2011 estimated from MODIS): map, fire clock, burning calendar, per-sensor year chart, validation, limits, and downloads (CSV and JSON). **Select your own area** by dragging a rectangle on the map, and every chart switches to it. |
-| **06 Why it matters** | When the fire season falls, how few years hold most of the burning, who could use the record, and what comes next. |
+| **Globe** | The main screen. An interactive 3D globe (NASA Blue Marble) with the week's fire activity as a thermal glow, the selected region highlighted, and numbered pulsing markers on the three hottest areas. Floating panels show detections per day, how far above normal, the percentile, where it is burning, the year so far and the biggest episodes. A timeline of the whole record scrubs and plays through time. |
+| **Record** | The burning calendar (one row per year), the fire clock and the per-sensor year chart, with the uncertainty band where values are estimated. |
+| **Orbit** | A 3D Earth with the five satellites on their inclined orbits and a readout for each. Period and speed are computed from altitude with Kepler's third law. |
+| **Detect** | One real day over the true satellite photograph, each hotspot drawn at its sensor's true pixel size, plus a pixel lab. |
+| **Match** | Live detection matching with adjustable distance and time tolerances, and three charts that explain the result. |
+| **Insights** | Six headline numbers computed from the data, who could use the record, and what comes next. |
+| **Method** | Held-out validation, the method, its limits, credits and downloads (CSV and JSON). |
+
+The selected date, region and area are shared by every view, so jumping to an episode on the globe moves the calendar too. Each view has its own address (for example `#record`), so the browser's back button and shared links work.
+
+The console replays a historical archive (2001 to 2025). It is not a live feed, and the interface says so.
 
 ### Selecting your own area
 
@@ -22,7 +29,7 @@ A custom area is the sum of its 0.5° grid cells, which are already on the harmo
 
 ### Built to survive a demo
 
-- Each WebGL map exists only while its scene is near the viewport, so at most two or three are alive at once.
+- Only the active view is mounted, so at most two WebGL maps are alive at once.
 - The globe textures are bundled in `web/public/textures/` (NASA Blue Marble and VIIRS Black Marble, from NASA GIBS), and a bundled world image sits under the live tiles of the intro globe.
 - Maps show a loading chip, and say so if the basemap or the day's imagery cannot be reached. The fire data is bundled with the site and still draws.
 

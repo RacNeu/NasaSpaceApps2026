@@ -83,7 +83,7 @@ export function Satellites({ data }: { data: Dataset }) {
     <section id="satellites" className="scene scene-sats">
       <div className="scene-inner">
         <div className="scene-copy">
-          <div className="scene-code mono">SCENE 02 · THE SATELLITES</div>
+          <div className="scene-code mono">ORBIT · THE SATELLITES</div>
           <h2>Two perspectives. One Earth.</h2>
           <p className="lede">
             Fires are found from orbit by looking for heat. Two families of instruments do this job. They fly at different heights, at different times of

@@ -151,7 +151,7 @@ export function Detection({ demos }: { demos: DemoDay[] }) {
     <section id="detection" ref={ref} className="scene scene-detect">
       <div className="scene-inner wide">
         <div className="scene-copy">
-          <div className="scene-code mono">SCENE 03 · DETECTION</div>
+          <div className="scene-code mono">DETECT · ONE DAY, PIXEL BY PIXEL</div>
           <h2>Finding thermal anomalies</h2>
           <p className="lede">
             Each glowing footprint is one hotspot: a pixel that looked hot to a satellite. It is a thermal anomaly, not a confirmed fire. This is a single day

@@ -50,7 +50,7 @@ export function Harmonization({ demos, matching }: { demos: DemoDay[]; matching:
     <section id="harmonization" ref={ref} className="scene scene-harm">
       <div className="scene-inner wide">
         <div className="scene-copy">
-          <div className="scene-code mono">SCENE 04 · HARMONIZATION</div>
+          <div className="scene-code mono">MATCH · DETECTION-LEVEL HARMONIZATION</div>
           <h2>Bringing observations together</h2>
           <p className="lede">
             Drawing both sensors on one map is not harmonization. Two detections only count as the same event if they agree in space and in
@@ -195,7 +195,7 @@ export function Harmonization({ demos, matching }: { demos: DemoDay[]; matching:
           <div className="mono">THE CONSEQUENCE</div>
           <p>
             Matching pairs of detections proves the sensors agree on the larger fires, but it cannot make the two counts equal. Counting hotspots over
-            time needs a calibration that also adapts to season and fire size. That is what the next scene delivers, with its uncertainty shown.
+            time needs a calibration that also adapts to season and fire size. That is what the Record and Method views deliver, with the uncertainty shown.
           </p>
         </div>
       </div>
