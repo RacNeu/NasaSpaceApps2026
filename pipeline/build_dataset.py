@@ -108,8 +108,24 @@ def fit(X, y):
     return beta
 
 
+SEA_CONFIG = {
+    "box": BOX, "cell": CELL, "nx": NX, "ny": NY,
+    "regions": REGIONS, "all_name": "Study area (all four regions)", "out": OUT,
+}
+
+
 def main():
-    df = load_caches()
+    build(load_caches(), SEA_CONFIG)
+
+
+def build(df, cfg):
+    """Harmonize one sector. cfg: box, cell, nx, ny, regions {id: (name, colour, polygon or None)},
+    all_name, out, and optionally sector (extra metadata). If df already has a `region` column
+    (index into the regions), it is used as is; otherwise cells are assigned by polygon."""
+    BOX, CELL, NX, NY = cfg["box"], cfg["cell"], cfg["nx"], cfg["ny"]
+    REGIONS = cfg["regions"]
+    REGION_IDS = list(REGIONS)
+    OUT = cfg["out"]
     dates_all = pd.to_datetime(df["date"])
     start = pd.Timestamp(dates_all.min().year, 1, 1)
     end = pd.Timestamp(dates_all.max())
@@ -128,9 +144,15 @@ def main():
     cy_c = BOX[1] + (np.arange(NY) + 0.5) * CELL
     GX, GY = np.meshgrid(cx_c, cy_c)  # shape (NY, NX)
     region_of = np.full((NY, NX), -1, int)
-    for r, rid in enumerate(REGION_IDS):
-        region_of[points_in_polygon(GX, GY, REGIONS[rid][2])] = r
-    df["region"] = region_of[df["cy"].clip(0, NY - 1), df["cx"].clip(0, NX - 1)]
+    if "region" in df.columns:
+        # each cell takes the region that recorded most of its detections
+        tot = df.assign(n=df["n_quality"] + df["n_low"]).groupby(["cy", "cx", "region"])["n"].sum().reset_index()
+        tot = tot.sort_values("n").drop_duplicates(["cy", "cx"], keep="last")
+        region_of[tot["cy"].values, tot["cx"].values] = tot["region"].values
+    else:
+        for r, rid in enumerate(REGION_IDS):
+            region_of[points_in_polygon(GX, GY, REGIONS[rid][2])] = r
+        df["region"] = region_of[df["cy"].clip(0, NY - 1), df["cx"].clip(0, NX - 1)]
 
     # Daily counts per sensor x region (quality detections) and sensor availability
     counts = {s: np.full((len(REGION_IDS) + 1, T), np.nan) for s in SENSORS}  # last row = study area
@@ -287,7 +309,7 @@ def main():
             return [None if np.isnan(v) else (int(v) if nd == 0 else round(float(v), nd)) for v in a]
 
         out_regions[rid] = {
-            "name": REGIONS[rid][0] if rid in REGIONS else "Study area (all four regions)",
+            "name": REGIONS[rid][0] if rid in REGIONS else cfg["all_name"],
             "color": REGIONS[rid][1] if rid in REGIONS else "#ffffff",
             "series": {
                 "modis": pack(m, 0), "snpp": pack(sn, 0), "noaa20": pack(n20, 0),
@@ -373,12 +395,15 @@ def main():
         "regions": [{"id": rid, "name": out_regions[rid]["name"], "color": out_regions[rid]["color"],
                      "polygon": REGIONS[rid][2] if rid in REGIONS else None} for rid in names],
         "sensors": {
-            "modis": {"label": "MODIS (Terra + Aqua), 1 km", "first": idx[np.argmax(have["modis"])].strftime("%Y-%m-%d")},
-            "snpp": {"label": "Suomi NPP VIIRS, 375 m", "first": idx[np.argmax(have["snpp"])].strftime("%Y-%m-%d")},
-            "noaa20": {"label": "NOAA-20 VIIRS, 375 m", "first": idx[np.argmax(have["noaa20"])].strftime("%Y-%m-%d")},
+            "modis": {"label": "MODIS (Terra + Aqua), 1 km", "first": (idx[np.argmax(have["modis"])].strftime("%Y-%m-%d") if have["modis"].any() else None)},
+            "snpp": {"label": "Suomi NPP VIIRS, 375 m", "first": (idx[np.argmax(have["snpp"])].strftime("%Y-%m-%d") if have["snpp"].any() else None)},
+            "noaa20": {"label": "NOAA-20 VIIRS, 375 m", "first": (idx[np.argmax(have["noaa20"])].strftime("%Y-%m-%d") if have["noaa20"].any() else None)},
         },
         "calibration": calibration, "validation": validation, "events": events,
     }
+    if cfg.get("sector"):
+        meta["sector"] = cfg["sector"]
+    os.makedirs(OUT, exist_ok=True)
     with open(os.path.join(OUT, "meta.json"), "w") as f:
         json.dump(meta, f, separators=(",", ":"))
     with open(os.path.join(OUT, "daily.json"), "w") as f:

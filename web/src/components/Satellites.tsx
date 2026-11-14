@@ -2,7 +2,10 @@ import { Suspense, lazy, useState } from "react";
 import type { Dataset } from "../types";
 import { audio } from "../audio";
 import { useNear, useVisible } from "../hooks";
-import type { GlobeSat } from "./EarthGlobe";
+import type { Beacon, GlobeSat } from "./EarthGlobe";
+import type { SectorEntry } from "../data";
+import { VIEW_BOX } from "../sectorViews";
+import { UtcClock } from "../fx";
 import { Scramble, Ticker } from "../fx";
 
 // three.js is large, so it is only downloaded when this scene comes near the viewport
@@ -20,27 +23,27 @@ interface Sat extends GlobeSat {
 
 const SATS: Sat[] = [
   {
-    id: "terra", name: "Terra", sensor: "MODIS", color: "#45B8D1", altKm: 705, incl: 98.2, raan: 0, phase: 0.05, periodMin: 0,
+    id: "terra", name: "Terra", sensor: "MODIS", color: "#45B8D1", altKm: 705, incl: 98.2, raan: 0, phase: 0.05, periodMin: 0, swathKm: 2330,
     launched: "Dec 1999", crossing: "about 10:30 local, heading south", pixel: "1 km", swath: "about 2,330 km", studyKey: "modis",
     note: "Passes in the morning, so it sees a different part of the day's fire cycle than the afternoon satellites.",
   },
   {
-    id: "aqua", name: "Aqua", sensor: "MODIS", color: "#7fe0f2", altKm: 705, incl: 98.2, raan: 135, phase: 0.55, periodMin: 0,
+    id: "aqua", name: "Aqua", sensor: "MODIS", color: "#7fe0f2", altKm: 705, incl: 98.2, raan: 135, phase: 0.55, periodMin: 0, swathKm: 2330,
     launched: "May 2002", crossing: "about 13:30 local, heading north", pixel: "1 km", swath: "about 2,330 km", studyKey: "modis",
     note: "Flies at about the same local time as the VIIRS satellites, which makes it the right partner for matching detections.",
   },
   {
-    id: "snpp", name: "Suomi NPP", sensor: "VIIRS", color: "#FFC27A", altKm: 824, incl: 98.7, raan: 140, phase: 0.15, periodMin: 0,
+    id: "snpp", name: "Suomi NPP", sensor: "VIIRS", color: "#FFC27A", altKm: 824, incl: 98.7, raan: 140, phase: 0.15, periodMin: 0, swathKm: 3040,
     launched: "Oct 2011", crossing: "about 13:30 local, heading north", pixel: "375 m", swath: "about 3,000 km", studyKey: "snpp",
     note: "NASA ended Suomi NPP fire data production on 2 November 2026. NOAA-20 and NOAA-21 carry the same sensor and continue the record.",
   },
   {
-    id: "noaa20", name: "NOAA-20", sensor: "VIIRS", color: "#FF9D43", altKm: 824, incl: 98.7, raan: 140, phase: 0.66, periodMin: 0,
+    id: "noaa20", name: "NOAA-20", sensor: "VIIRS", color: "#FF9D43", altKm: 824, incl: 98.7, raan: 140, phase: 0.66, periodMin: 0, swathKm: 3040,
     launched: "Nov 2017", crossing: "about 13:30 local, heading north", pixel: "375 m", swath: "about 3,000 km", studyKey: "noaa20",
     note: "Follows the same orbital plane as Suomi NPP, about 50 minutes apart.",
   },
   {
-    id: "noaa21", name: "NOAA-21", sensor: "VIIRS", color: "#F05A42", altKm: 824, incl: 98.7, raan: 140, phase: 0.41, periodMin: 0,
+    id: "noaa21", name: "NOAA-21", sensor: "VIIRS", color: "#F05A42", altKm: 824, incl: 98.7, raan: 140, phase: 0.41, periodMin: 0, swathKm: 3040,
     launched: "Nov 2022", crossing: "about 13:30 local, heading north", pixel: "375 m", swath: "about 3,000 km",
     note: "Not yet in this version's record. It is the natural next step: the same calibration extends to it.",
   },
@@ -58,13 +61,23 @@ SATS.forEach((s) => {
   s.periodMin = physics(s.altKm).period;
 });
 
-export function Satellites({ data }: { data: Dataset }) {
+interface SectorNav {
+  sectors: SectorEntry[];
+  current: string;
+  onOpen: (s: SectorEntry) => void;
+}
+
+export function Satellites({ data, nav }: { data: Dataset; nav?: SectorNav }) {
   const [sel, setSel] = useState("aqua");
   const [seenRef, seen] = useNear<HTMLDivElement>("700px");
   const [visRef, visible] = useVisible<HTMLDivElement>(0.05);
   const selected = SATS.find((s) => s.id === sel)!;
   const ph = physics(selected.altKm);
   const first = selected.studyKey ? data.meta.sensors[selected.studyKey]?.first : null;
+  const beacons: Beacon[] = (nav?.sectors ?? []).map((s) => {
+    const [w, so, e, n] = VIEW_BOX[s.id] ?? s.box;
+    return { id: s.id, label: s.short, lon: (w + e) / 2, lat: (so + n) / 2 };
+  });
 
   const pick = (id: string) => {
     setSel(id);
@@ -163,17 +176,30 @@ export function Satellites({ data }: { data: Dataset }) {
         </div>
 
         <div className="globe-card glass" ref={visRef}>
-          <div className="hud-corner tl mono">ORBITAL VIEW</div>
+          <div className="hud-corner tl mono">
+            ORBITAL VIEW · SUN AT <UtcClock /> UTC
+          </div>
           <div className="hud-corner tr mono">SUN-SYNCHRONOUS · ~{selected.altKm} KM</div>
           <div ref={seenRef} className="globe-stage">
             {seen && (
               <Suspense fallback={<div className="globe-loading mono">LOADING ORBITAL VIEW</div>}>
-                <EarthGlobe sats={SATS} selected={sel} onSelect={pick} active={visible} />
+                <EarthGlobe
+                  sats={SATS}
+                  selected={sel}
+                  onSelect={pick}
+                  active={visible}
+                  beacons={beacons}
+                  currentBeacon={nav?.current}
+                  onBeacon={(id) => {
+                    const s = nav?.sectors.find((x) => x.id === id);
+                    if (s) nav!.onOpen(s);
+                  }}
+                />
               </Suspense>
             )}
           </div>
-          <div className="hud-corner bl mono">DRAG TO ROTATE · CLICK A SATELLITE</div>
-          <div className="hud-corner br mono">ORBIT HEIGHTS EXAGGERATED</div>
+          <div className="hud-corner bl mono">DRAG TO ROTATE · CLICK A SATELLITE{beacons.length ? " OR A SECTOR" : ""}</div>
+          <div className="hud-corner br mono">HEIGHTS EXAGGERATED · SWATH WIDTHS TO SCALE</div>
         </div>
       </div>
     </section>

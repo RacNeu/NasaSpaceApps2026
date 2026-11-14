@@ -24,7 +24,7 @@ export function DetailPanel({ data, regionId, t }: Props) {
   const { meta, daily, grid } = data;
   const s = daily.regions[regionId];
   const custom = regionId === "custom";
-  const regionName = regionId === "study_area" ? "the whole study area" : custom ? "your selected area" : (meta.regions.find((r) => r.id === regionId)?.name ?? regionId);
+  const regionName = regionId === "study_area" ? (meta.sector ? (meta.regions.find((r) => r.id === "study_area")?.name ?? "the whole sector") : "the whole study area") : custom ? "your selected area" : (meta.regions.find((r) => r.id === regionId)?.name ?? regionId);
   const date = dateAt(meta.start, t);
 
   const info = useMemo(() => {

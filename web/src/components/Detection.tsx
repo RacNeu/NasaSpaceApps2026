@@ -8,25 +8,102 @@ import { Scramble, Ticker } from "../fx";
 
 /* ------------------------------------------------------------------ pixel lab */
 
-const BIG = 240; // px for 1 km
-const SMALL = BIG * 0.375; // 90 px for 375 m
+const BIG = 270; // px for 1 km
+const SMALL = BIG * 0.375; // px for 375 m
+const COLS = Math.ceil(BIG / SMALL);
 
-function PixelLab() {
-  const [fires, setFires] = useState<{ x: number; y: number }[]>([{ x: 70, y: 66 }]);
+type Size = "small" | "medium" | "large";
+interface Fire {
+  x: number;
+  y: number;
+  size: Size;
+}
+/** How much heat each fire puts out, in arbitrary units, and how far it spreads. */
+const HEAT: Record<Size, number> = { small: 1, medium: 2, large: 2 };
+const SPREAD: Record<Size, number> = { small: 0, medium: 0, large: 46 };
+/** A 1 km pixel needs more total heat to stand out than a 375 m one, because the fire fills less of it. */
+const MODIS_THRESHOLD = 2;
+const VIIRS_THRESHOLD = 1;
 
-  const modisPixels = new Set<string>();
-  const viirsPixels = new Set<string>();
-  fires.forEach((f) => {
-    modisPixels.add("m"); // one MODIS pixel covers the whole square
-    viirsPixels.add(`${Math.floor(f.x / SMALL)}-${Math.floor(f.y / SMALL)}`);
-  });
-  const cols = Math.ceil(BIG / SMALL);
+/** A large fire is a front of burning points; small and medium fires are one point. */
+const heatPoints = (f: Fire) => {
+  if (f.size !== "large") return [{ x: f.x, y: f.y, h: HEAT[f.size] }];
+  const pts: { x: number; y: number; h: number }[] = [];
+  for (let a = 0; a < 7; a++) {
+    const t = (a / 6) * Math.PI * 1.6 - 0.3;
+    pts.push({ x: f.x + Math.cos(t) * SPREAD.large, y: f.y + Math.sin(t) * SPREAD.large * 0.7, h: HEAT.large });
+  }
+  return pts.map((p) => ({ ...p, x: Math.max(4, Math.min(BIG - 4, p.x)), y: Math.max(4, Math.min(BIG - 4, p.y)) }));
+};
+
+const SCENARIOS: { id: string; label: string; fires: Fire[]; text: string }[] = [
+  {
+    id: "two",
+    label: "Two fires, one pixel",
+    fires: [
+      { x: 52, y: 60, size: "medium" },
+      { x: 205, y: 190, size: "medium" },
+    ],
+    text: "Both fires sit inside the same 1 km pixel, so MODIS can only say “this pixel is hot” once. VIIRS sees them in separate 375 m pixels and counts two.",
+  },
+  {
+    id: "small",
+    label: "A small fire",
+    fires: [{ x: 140, y: 120, size: "small" }],
+    text: "A small fire heats only a sliver of a 1 km pixel, often too little to cross MODIS's threshold. In a 375 m pixel the same fire is a much bigger share, so VIIRS flags it. In our matching, VIIRS's weakest detections were the ones Aqua most often missed.",
+  },
+  {
+    id: "large",
+    label: "A large fire",
+    fires: [{ x: 135, y: 130, size: "large" }],
+    text: "A large fire front spreads across several 375 m pixels, and VIIRS reports each one. MODIS reports its one pixel. Same fire, very different counts.",
+  },
+];
+
+function PixelLab({ ratio }: { ratio?: number }) {
+  const [scenario, setScenario] = useState("two");
+  const [fires, setFires] = useState<Fire[]>(SCENARIOS[0].fires);
+  const [brush, setBrush] = useState<Size>("medium");
+  const active = SCENARIOS.find((s) => s.id === scenario);
+
+  // heat per VIIRS cell and in the single MODIS pixel
+  const cellHeat = new Map<string, number>();
+  let modisHeat = 0;
+  for (const f of fires) {
+    for (const p of heatPoints(f)) {
+      const k = `${Math.floor(p.x / SMALL)}-${Math.floor(p.y / SMALL)}`;
+      cellHeat.set(k, (cellHeat.get(k) ?? 0) + p.h);
+      modisHeat += p.h;
+    }
+  }
+  const viirsHits = [...cellHeat.values()].filter((h) => h >= VIIRS_THRESHOLD).length;
+  const modisHit = modisHeat >= MODIS_THRESHOLD ? 1 : 0;
+
+  const pick = (id: string) => {
+    const s = SCENARIOS.find((x) => x.id === id)!;
+    setScenario(id);
+    setFires(s.fires);
+    audio.ping(760);
+  };
 
   return (
     <div className="pixel-lab">
       <div className="pl-head">
-        <div className="mono scene-code">TRY IT · ONE MODIS PIXEL, SEEN BY VIIRS</div>
-        <p>Click inside the square to place fires. The big square is one 1 km MODIS pixel. The small squares are 375 m VIIRS pixels.</p>
+        <div className="mono scene-code">WHY THE COUNTS DIFFER · ONE MODIS PIXEL, SEEN BY VIIRS</div>
+        <p>
+          The big square is one 1 km MODIS pixel; the small squares are the 375 m VIIRS pixels inside it. Pick a scenario, or click inside the square to
+          place your own fires.
+        </p>
+        <div className="seg-row pl-scen" role="group" aria-label="Scenario">
+          {SCENARIOS.map((s) => (
+            <button key={s.id} className={`seg-btn ${scenario === s.id ? "on" : ""}`} onClick={() => pick(s.id)}>
+              {s.label}
+            </button>
+          ))}
+          <button className={`seg-btn ${scenario === "free" ? "on" : ""}`} onClick={() => { setScenario("free"); setFires([]); }}>
+            Your own
+          </button>
+        </div>
       </div>
       <div className="pl-body">
         <svg
@@ -35,60 +112,97 @@ function PixelLab() {
           viewBox={`0 0 ${BIG} ${BIG}`}
           className="pl-svg"
           role="img"
-          aria-label="A 1 kilometre MODIS pixel divided into 375 metre VIIRS pixels"
+          aria-label={`A 1 kilometre MODIS pixel divided into 375 metre VIIRS pixels. MODIS reports ${modisHit}, VIIRS reports ${viirsHits}.`}
           onClick={(e) => {
             const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
             const x = ((e.clientX - r.left) / r.width) * BIG;
             const y = ((e.clientY - r.top) / r.height) * BIG;
-            setFires((f) => (f.length >= 8 ? [{ x, y }] : [...f, { x, y }]));
+            setScenario("free");
+            setFires((f) => (f.length >= 8 ? [{ x, y, size: brush }] : [...f, { x, y, size: brush }]));
             audio.ping(660 + fires.length * 60);
           }}
         >
-          <rect x="1" y="1" width={BIG - 2} height={BIG - 2} fill="rgba(69,184,209,0.16)" stroke="#45B8D1" strokeWidth="2" />
-          {Array.from({ length: cols }, (_, cx) =>
-            Array.from({ length: cols }, (_, cy) => {
-              const hit = viirsPixels.has(`${cx}-${cy}`);
-              const w = Math.min(SMALL, BIG - cx * SMALL);
-              const h = Math.min(SMALL, BIG - cy * SMALL);
+          <rect
+            x="1"
+            y="1"
+            width={BIG - 2}
+            height={BIG - 2}
+            className={modisHit ? "pl-modis hit" : "pl-modis"}
+            fill={modisHit ? "rgba(69,184,209,0.2)" : "rgba(69,184,209,0.04)"}
+            stroke="#45B8D1"
+            strokeWidth="2"
+            strokeDasharray={modisHit ? "" : "6 5"}
+          />
+          {Array.from({ length: COLS }, (_, cx) =>
+            Array.from({ length: COLS }, (_, cy) => {
+              const hit = (cellHeat.get(`${cx}-${cy}`) ?? 0) >= VIIRS_THRESHOLD;
               return (
                 <rect
                   key={`${cx}-${cy}`}
                   x={cx * SMALL}
                   y={cy * SMALL}
-                  width={w}
-                  height={h}
-                  fill={hit ? "rgba(255,157,67,0.55)" : "none"}
+                  width={Math.min(SMALL, BIG - cx * SMALL)}
+                  height={Math.min(SMALL, BIG - cy * SMALL)}
+                  className={hit ? "pl-cell hit" : "pl-cell"}
+                  fill={hit ? "rgba(255,157,67,0.5)" : "none"}
                   stroke="#FF9D43"
-                  strokeOpacity={hit ? 1 : 0.45}
+                  strokeOpacity={hit ? 1 : 0.4}
                   strokeDasharray={hit ? "" : "3 3"}
                 />
               );
             }),
           )}
-          {fires.map((f, i) => (
-            <g key={i}>
-              <circle cx={f.x} cy={f.y} r="9" fill="#F05A42" opacity="0.35" />
-              <circle cx={f.x} cy={f.y} r="4" fill="#F05A42" />
-            </g>
-          ))}
+          {fires.map((f, i) =>
+            f.size === "large" ? (
+              <g key={i} className="pl-fire">
+                {heatPoints(f).map((p, j) => (
+                  <g key={j}>
+                    <circle cx={p.x} cy={p.y} r="13" fill="#F05A42" opacity="0.3" />
+                    <circle cx={p.x} cy={p.y} r="5" fill="#ffb27a" />
+                  </g>
+                ))}
+              </g>
+            ) : (
+              <g key={i} className="pl-fire">
+                <circle cx={f.x} cy={f.y} r={f.size === "small" ? 6 : 11} fill="#F05A42" opacity="0.35" />
+                <circle cx={f.x} cy={f.y} r={f.size === "small" ? 2.5 : 4.5} fill="#ffb27a" />
+              </g>
+            ),
+          )}
         </svg>
         <div className="pl-count">
           <div className="pl-stat modis">
             <div className="mono">MODIS REPORTS</div>
-            <b>{fires.length ? 1 : 0}</b>
-            <span>{fires.length ? "hotspot" : "hotspots"}</span>
+            <b>
+              <Ticker text={String(modisHit)} ms={500} />
+            </b>
+            <span>{modisHit ? "hotspot" : "nothing: too faint for 1 km"}</span>
           </div>
           <div className="pl-stat viirs">
             <div className="mono">VIIRS REPORTS</div>
-            <b>{viirsPixels.size}</b>
-            <span>{viirsPixels.size === 1 ? "hotspot" : "hotspots"}</span>
+            <b>
+              <Ticker text={String(viirsHits)} ms={500} />
+            </b>
+            <span>{viirsHits === 1 ? "hotspot" : "hotspots"}</span>
           </div>
-          <button className="btn-ghost small" onClick={() => setFires([])}>
-            Clear
-          </button>
+          {scenario === "free" && (
+            <div className="pl-brush" role="group" aria-label="Fire size">
+              <span className="mono">NEXT FIRE</span>
+              {(["small", "medium", "large"] as Size[]).map((s) => (
+                <button key={s} className={`seg-btn ${brush === s ? "on" : ""}`} onClick={() => setBrush(s)}>
+                  {s}
+                </button>
+              ))}
+              <button className="btn-ghost small" onClick={() => setFires([])}>
+                Clear
+              </button>
+            </div>
+          )}
+          <p className="pl-explain">{active ? active.text : "Mix small, medium and large fires and watch how the two counts drift apart."}</p>
           <p className="fineprint">
-            {fires.length} fire{fires.length === 1 ? "" : "s"} placed. A 1 km pixel holds about {(1 / 0.375 ** 2).toFixed(1)} VIIRS pixels, so the same
-            ground can produce more VIIRS hotspots than MODIS ones, and VIIRS pins each one down more tightly.
+            Add this up over millions of fires and you get the gap in the record: VIIRS reports {ratio ? `${ratio.toFixed(1)}×` : "several times"} as many
+            hotspots as MODIS in Southeast Asia. This is a simplified picture: real detection also depends on fire temperature, smoke, cloud and the
+            viewing angle.
           </p>
         </div>
       </div>
@@ -106,7 +220,7 @@ const IMAGERY: { id: Imagery; label: string }[] = [
   { id: "none", label: "No imagery" },
 ];
 
-export function Detection({ demos }: { demos: DemoDay[] }) {
+export function Detection({ demos, ratio }: { demos: DemoDay[]; ratio?: number }) {
   const [ref, seen] = useNear<HTMLElement>("600px");
   const [di, setDi] = useState(0);
   const [imagery, setImagery] = useState<Imagery>("aqua");
@@ -234,7 +348,7 @@ export function Detection({ demos }: { demos: DemoDay[] }) {
         </div>
       </div>
       <div className="scene-inner wide below">
-        <PixelLab />
+        <PixelLab ratio={ratio} />
       </div>
     </section>
   );

@@ -11,6 +11,15 @@ export interface GlobeSat {
   raan: number; // degrees, orientation of the orbit plane
   phase: number; // 0..1 around the orbit
   periodMin: number;
+  /** Width of the strip of ground the instrument images, in km. */
+  swathKm: number;
+}
+
+export interface Beacon {
+  id: string;
+  label: string;
+  lon: number;
+  lat: number;
 }
 
 interface Props {
@@ -18,6 +27,24 @@ interface Props {
   selected: string;
   onSelect: (id: string) => void;
   active: boolean;
+  /** Sectors marked on the globe; clicking one calls onBeacon. */
+  beacons?: Beacon[];
+  currentBeacon?: string;
+  onBeacon?: (id: string) => void;
+}
+
+/**
+ * Where the sun is overhead right now. Declination from the day of the year, longitude from UTC
+ * with the equation of time; accurate to well under a degree, plenty for a day/night terminator.
+ */
+export function subsolarPoint(d: Date) {
+  const doy = (d.getTime() - Date.UTC(d.getUTCFullYear(), 0, 0)) / 86_400_000;
+  const decl = -23.44 * Math.cos(((2 * Math.PI) / 365) * (doy + 10));
+  const b = (2 * Math.PI * (doy - 81)) / 364;
+  const eotMin = 9.87 * Math.sin(2 * b) - 7.53 * Math.cos(b) - 1.5 * Math.sin(b);
+  const hours = d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
+  const lon = -15 * (hours - 12 + eotMin / 60);
+  return { lon: ((((lon + 180) % 360) + 360) % 360) - 180, lat: decl };
 }
 
 const R_EARTH = 6371;
@@ -103,9 +130,12 @@ const ATMO_FRAG = /* glsl */ `
   }
 `;
 
-export function EarthGlobe({ sats, selected, onSelect, active }: Props) {
+export function EarthGlobe({ sats, selected, onSelect, active, beacons = [], currentBeacon, onBeacon }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const labelRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const beaconRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const curBeaconRef = useRef(currentBeacon);
+  curBeaconRef.current = currentBeacon;
   const selRef = useRef(selected);
   const activeRef = useRef(active);
   const onSelectRef = useRef(onSelect);
@@ -143,8 +173,8 @@ export function EarthGlobe({ sats, selected, onSelect, active }: Props) {
     const uniforms = {
       dayMap: { value: blank as THREE.Texture },
       nightMap: { value: blank as THREE.Texture },
-      // sun placed over the Indian Ocean so Southeast Asia is in daylight with the terminator in view
-      sunDir: { value: lonLat(52, 14, 1).normalize() },
+      // the real sun: the terminator sits where day and night actually are right now
+      sunDir: { value: (() => { const p = subsolarPoint(new Date()); return lonLat(p.lon, p.lat, 1).normalize(); })() },
     };
     const earth = new THREE.Mesh(
       new THREE.SphereGeometry(1, 128, 96),
@@ -181,15 +211,28 @@ export function EarthGlobe({ sats, selected, onSelect, active }: Props) {
     starGeo.setAttribute("position", new THREE.BufferAttribute(sp, 3));
     scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xcfe6ff, size: 0.18, sizeAttenuation: true, transparent: true, opacity: 0.8, depthWrite: false })));
 
-    // study-area marker (pulsing ring on the surface)
-    const marker = new THREE.Mesh(
-      new THREE.RingGeometry(0.06, 0.068, 64),
-      new THREE.MeshBasicMaterial({ color: 0xff9d43, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }),
-    );
-    const mp = lonLat(110, 0, 1.004);
-    marker.position.copy(mp);
-    marker.lookAt(mp.clone().multiplyScalar(2));
-    scene.add(marker);
+    // sector beacons: a pulsing ring on the surface and a pillar of light rising from it
+    const beaconObjs = beacons.map((b) => {
+      const base = lonLat(b.lon, b.lat, 1.004);
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(0.045, 0.052, 64),
+        new THREE.MeshBasicMaterial({ color: 0xff9d43, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      ring.position.copy(base);
+      ring.lookAt(base.clone().multiplyScalar(2));
+      scene.add(ring);
+      const pillarGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.16, 8, 1, true);
+      pillarGeo.translate(0, 0.08, 0);
+      const pillar = new THREE.Mesh(
+        pillarGeo,
+        new THREE.MeshBasicMaterial({ color: 0xffc27a, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false }),
+      );
+      pillar.position.copy(base);
+      pillar.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), base.clone().normalize());
+      scene.add(pillar);
+      const tip = lonLat(b.lon, b.lat, 1.17);
+      return { b, ring, pillar, tip };
+    });
 
     // orbits and satellites
     interface Live {
@@ -201,6 +244,10 @@ export function EarthGlobe({ sats, selected, onSelect, active }: Props) {
       ring: THREE.LineLoop;
       radius: number;
       rate: number;
+      swath: THREE.Mesh;
+      swathPos: Float32Array;
+      halfWidth: number;
+      beam: THREE.Line;
     }
     const live: Live[] = sats.map((s) => {
       const radius = 1 + (s.altKm / R_EARTH) * EXAGGERATE;
@@ -239,7 +286,38 @@ export function EarthGlobe({ sats, selected, onSelect, active }: Props) {
       tg.setAttribute("color", new THREE.BufferAttribute(trailCol, 3));
       const trail = new THREE.Line(tg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
       inner.add(trail);
-      return { sat: s, inner, dot, trail, trailPos, ring, radius, rate: (Math.PI * 2) / 26 / (s.periodMin / 98.8) };
+
+      // the strip of ground the instrument images, drawn on the surface at its true width
+      const SN = 40;
+      const swathPos = new Float32Array((SN + 1) * 2 * 3);
+      const swathCol = new Float32Array((SN + 1) * 2 * 3);
+      for (let i = 0; i <= SN; i++) {
+        const f = Math.pow(1 - i / SN, 1.2) * 0.8;
+        swathCol.set([c.r * f, c.g * f, c.b * f, c.r * f, c.g * f, c.b * f], i * 6);
+      }
+      const idx: number[] = [];
+      for (let i = 0; i < SN; i++) {
+        const a0 = i * 2;
+        idx.push(a0, a0 + 1, a0 + 2, a0 + 1, a0 + 3, a0 + 2);
+      }
+      const sg = new THREE.BufferGeometry();
+      sg.setAttribute("position", new THREE.BufferAttribute(swathPos, 3));
+      sg.setAttribute("color", new THREE.BufferAttribute(swathCol, 3));
+      sg.setIndex(idx);
+      const swath = new THREE.Mesh(
+        sg,
+        new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+      );
+      swath.frustumCulled = false; // its vertices move every frame
+      swath.renderOrder = 2;
+      inner.add(swath);
+      const beamGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      const beam = new THREE.Line(beamGeo, new THREE.LineBasicMaterial({ color: c, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }));
+      inner.add(beam);
+      return {
+        sat: s, inner, dot, trail, trailPos, ring, radius, rate: (Math.PI * 2) / 26 / (s.periodMin / 98.8),
+        swath, swathPos, halfWidth: s.swathKm / R_EARTH / 2, beam,
+      };
     });
 
     const size = () => {
@@ -272,6 +350,7 @@ export function EarthGlobe({ sats, selected, onSelect, active }: Props) {
       }
       if (best) onSelectRef.current(best.id);
     };
+    let lastSun = 0;
     renderer.domElement.addEventListener("click", onClick);
 
     const clock = new THREE.Clock();
@@ -284,8 +363,38 @@ export function EarthGlobe({ sats, selected, onSelect, active }: Props) {
       if (!activeRef.current) return;
       const t = clock.getElapsedTime();
       controls.update();
-      marker.scale.setScalar(1 + 0.25 * Math.sin(t * 2.2));
-      (marker.material as THREE.MeshBasicMaterial).opacity = 0.55 + 0.35 * Math.sin(t * 2.2 + 1);
+      // keep the sun where it really is
+      if (t - lastSun > 30) {
+        lastSun = t;
+        const p = subsolarPoint(new Date());
+        uniforms.sunDir.value.copy(lonLat(p.lon, p.lat, 1).normalize());
+      }
+      for (const o of beaconObjs) {
+        const cur = o.b.id === curBeaconRef.current;
+        const pulse = 1 + 0.35 * Math.sin(t * 2.4 + o.b.lon);
+        o.ring.scale.setScalar(cur ? pulse * 1.25 : pulse);
+        (o.ring.material as THREE.MeshBasicMaterial).color.set(cur ? 0x9fe6f5 : 0xff9d43);
+        (o.pillar.material as THREE.MeshBasicMaterial).color.set(cur ? 0x9fe6f5 : 0xffc27a);
+        (o.pillar.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.3 * Math.sin(t * 3 + o.b.lat);
+        const lab = beaconRefs.current[o.b.id];
+        if (lab) {
+          const d = tmp.copy(o.tip).sub(camera.position);
+          const bq = camera.position.dot(d);
+          const cq = camera.position.lengthSq() - 1;
+          const disc = bq * bq - d.lengthSq() * cq;
+          let hidden = false;
+          if (disc > 0) {
+            const s1 = (-bq - Math.sqrt(disc)) / d.lengthSq();
+            hidden = s1 > 0 && s1 < 1;
+          }
+          const p = o.tip.clone().project(camera);
+          const w = renderer.domElement.clientWidth;
+          const h = renderer.domElement.clientHeight;
+          lab.style.transform = `translate(calc(${((p.x + 1) / 2) * w}px - 50%), ${((1 - p.y) / 2) * h - 24}px)`;
+          lab.style.opacity = hidden ? "0" : "1";
+          lab.style.pointerEvents = hidden ? "none" : "auto";
+        }
+      }
       camPos.copy(camera.position);
       for (const l of live) {
         const a = (l.sat.phase * Math.PI * 2) + t * l.rate;
@@ -301,6 +410,26 @@ export function EarthGlobe({ sats, selected, onSelect, active }: Props) {
         }
         (l.trail.geometry.getAttribute("position") as THREE.BufferAttribute).needsUpdate = true;
         (l.trail.material as THREE.LineBasicMaterial).opacity = sel ? 1 : 0.55;
+        // swath and beam only for the selected satellite, so the picture stays readable
+        l.swath.visible = sel;
+        l.beam.visible = sel;
+        if (sel) {
+          const SN = l.swathPos.length / 6 - 1;
+          const cw = Math.cos(l.halfWidth);
+          const sw = Math.sin(l.halfWidth);
+          const rS = 1.006;
+          for (let i = 0; i <= SN; i++) {
+            const th = a - (i / SN) * 0.9;
+            const px = Math.cos(th) * cw;
+            const pz = Math.sin(th) * cw;
+            l.swathPos.set([px * rS, sw * rS, pz * rS, px * rS, -sw * rS, pz * rS], i * 6);
+          }
+          (l.swath.geometry.getAttribute("position") as THREE.BufferAttribute).needsUpdate = true;
+          const bp = l.beam.geometry.getAttribute("position") as THREE.BufferAttribute;
+          bp.setXYZ(0, Math.cos(a) * l.radius, 0, Math.sin(a) * l.radius);
+          bp.setXYZ(1, Math.cos(a) * 1.006, 0, Math.sin(a) * 1.006);
+          bp.needsUpdate = true;
+        }
 
         // label placement, hidden when the satellite is behind the Earth
         const lab = labelRefs.current[l.sat.id];
@@ -348,6 +477,19 @@ export function EarthGlobe({ sats, selected, onSelect, active }: Props) {
   return (
     <div className="globe-host" ref={host}>
       <div className="globe-labels" aria-hidden={false}>
+        {beacons.map((b) => (
+          <button
+            key={`b-${b.id}`}
+            ref={(e) => {
+              beaconRefs.current[b.id] = e;
+            }}
+            className={`globe-beacon mono ${currentBeacon === b.id ? "on" : ""}`}
+            onClick={() => onBeacon?.(b.id)}
+            title={`Open ${b.label}`}
+          >
+            {b.label}
+          </button>
+        ))}
         {sats.map((s) => (
           <button
             key={s.id}

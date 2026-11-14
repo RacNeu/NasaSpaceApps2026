@@ -5,6 +5,7 @@ import type { Mission, ViewId } from "../mission";
 import { ago, summarizeLive, TONE_COLOR, useLiveFeed, type LivePayload, type RegionLive } from "../live";
 import { fmtNum, monthName } from "../lib";
 import { Scramble, Ticker } from "../fx";
+import { viewBox } from "../sectorViews";
 
 const GIBS = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best";
 
@@ -23,7 +24,7 @@ function LiveMap({ m, payload, regions, focus }: { m: Mission; payload: LivePayl
     if (!el.current || map.current) return;
     const mp = new maplibregl.Map({
       container: el.current,
-      center: [128, 14],
+      center: [(viewBox(meta)[0] + viewBox(meta)[2]) / 2, (viewBox(meta)[1] + viewBox(meta)[3]) / 2 + 8],
       zoom: 0.6,
       attributionControl: { compact: true },
       style: {
@@ -100,7 +101,7 @@ function LiveMap({ m, payload, regions, focus }: { m: Mission; payload: LivePayl
       mp.addLayer({ id: "labels", type: "raster", source: "labels", paint: { "raster-opacity": 0.75 } });
       setLoaded(true);
       const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const [w, s, e, n] = meta.box;
+      const [w, s, e, n] = viewBox(meta);
       mp.fitBounds([[w, s], [e, n]], { padding, duration: still ? 0 : 3000, essential: true });
     });
     map.current = mp;
@@ -181,7 +182,7 @@ function LiveMap({ m, payload, regions, focus }: { m: Mission; payload: LivePayl
     if (!mp || !loaded) return;
     const r = meta.regions.find((x) => x.id === focus);
     if (!r?.polygon) {
-      const [w, s, e, n] = meta.box;
+      const [w, s, e, n] = viewBox(meta);
       mp.fitBounds([[w, s], [e, n]], { padding, duration: 1200 });
       return;
     }
@@ -239,7 +240,7 @@ function DayBars({ p, study }: { p: LivePayload; study: RegionLive }) {
 /* ---------------------------------------------------------------- the view */
 
 export function Live({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
-  const { state, reload } = useLiveFeed();
+  const { state, reload } = useLiveFeed(m.data.meta.sector?.id ?? "sea");
   const [focus, setFocus] = useState("study_area");
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -264,7 +265,7 @@ export function Live({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
             <span className="mono live-tag">
               <i className="rec" /> LIVE · LAST 7 DAYS
             </span>
-            <span className="mono dim">{focus === "study_area" ? "ALL FOUR REGIONS" : sel?.name.toUpperCase()}</span>
+            <span className="mono dim">{sel?.name.toUpperCase()}</span>
           </div>
           {state.status === "loading" && <div className="live-wait mono">CONTACTING NASA FIRMS…</div>}
           {state.status === "unconfigured" && (
@@ -328,7 +329,7 @@ export function Live({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
         {payload && sum && (
           <div className="hud-panel glass">
             <div className="panel-head">
-              <span className="mono">NOAA-20 PER DAY · ALL REGIONS</span>
+              <span className="mono">NOAA-20 PER DAY · {sum.study.name.toUpperCase()}</span>
               <span className="mono dim">— — NORMAL · <span className="cyan">—</span> NOAA-21</span>
             </div>
             <DayBars p={payload} study={sum.study} />
@@ -375,14 +376,14 @@ export function Live({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
           {!sum && <div className="live-wait mono">{state.status === "loading" ? "WAITING FOR DATA…" : "NO LIVE DATA"}</div>}
           {sum && (
             <ul className="warn-list">
-              {[sum.study, ...sum.regions].map((r) => {
+              {(sum.regions.length > 1 ? [sum.study, ...sum.regions] : [sum.study]).map((r) => {
                 const max = Math.max(1, ...r.daily);
                 return (
                   <li key={r.id}>
                     <button className={focus === r.id ? "on" : ""} onClick={() => setFocus(r.id)}>
                       <span className="wl-name">
                         <i style={{ background: r.id === "study_area" ? "#fff" : r.color }} />
-                        {r.id === "study_area" ? "All four regions" : r.name}
+                        {r.name}
                       </span>
                       <span className="wl-bars" aria-hidden>
                         {r.daily.map((v, i) => (

@@ -15,6 +15,7 @@ import "./console.css";
 import "./fx.css";
 import "./intro.css";
 import "./live.css";
+import "./sectors.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
