@@ -166,7 +166,7 @@ export function YearChart({ data, regionId, t, onPick }: Props) {
           {show.modis && <path d={mk(sm.modis)} stroke={SENSOR_COLORS.modis} className="raw-line" />}
           {show.snpp && <path d={mk(sm.snpp)} stroke={SENSOR_COLORS.snpp} className="raw-line" />}
           {show.noaa20 && <path d={mk(sm.noaa20)} stroke={SENSOR_COLORS.noaa20} className="raw-line" />}
-          <path d={pathObs} className="harm-line" />
+          <path key={`obs-${year}`} d={pathObs} className="harm-line draw-line" pathLength={1} />
           <path d={pathEst} className="harm-line est" />
           <line x1={x(t - first)} x2={x(t - first)} y1={0} y2={ih} className="sel-line" />
           {tipI !== null && <line x1={x(tipI - first)} x2={x(tipI - first)} y1={0} y2={ih} className="hover-line" />}

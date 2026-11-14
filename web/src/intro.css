@@ -1,0 +1,397 @@
+/* The entry sequence, which is also the loading screen. */
+
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 4vw;
+  padding: 0 7vw;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 30% 50%, #0a1830 0%, #04070d 55%, #020308 100%);
+  color: var(--text);
+  cursor: default;
+}
+
+/* drifting starfield, two layers at different speeds for depth */
+.intro-stars,
+.intro-stars::after {
+  position: absolute;
+  inset: -50%;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, #fff, transparent),
+    radial-gradient(1px 1px at 72% 31%, #cfe9ff, transparent),
+    radial-gradient(1.4px 1.4px at 41% 77%, #fff, transparent),
+    radial-gradient(1px 1px at 87% 64%, #ffe2c2, transparent),
+    radial-gradient(1px 1px at 23% 56%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 58% 12%, #fff, transparent),
+    radial-gradient(1px 1px at 8% 88%, #bfe3f5, transparent),
+    radial-gradient(1px 1px at 95% 9%, #fff, transparent),
+    radial-gradient(1px 1px at 66% 92%, #fff, transparent),
+    radial-gradient(1.3px 1.3px at 33% 35%, #fff, transparent);
+  background-size: 340px 340px;
+  opacity: 0.75;
+  animation: stars-drift 60s linear infinite;
+}
+.intro-stars::after {
+  content: "";
+  inset: 0;
+  background-size: 210px 210px;
+  opacity: 0.5;
+  animation-duration: 38s;
+}
+@keyframes stars-drift {
+  to {
+    transform: translate(-340px, 120px);
+  }
+}
+
+/* ---------------------------------------------------------------- the Earth */
+.intro-stage {
+  position: relative;
+  justify-self: center;
+  width: min(44vw, 520px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  animation: earth-arrive 1.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes earth-arrive {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+    filter: brightness(0.2);
+  }
+}
+.intro-earth {
+  position: relative;
+  width: 62%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 0 60px rgba(69, 184, 209, 0.35), 0 0 140px rgba(69, 184, 209, 0.15);
+}
+/* an equirectangular map scrolled behind a circular window reads as a rotating sphere */
+.intro-earth .day,
+.intro-earth .night {
+  position: absolute;
+  inset: 0;
+  background-size: auto 100%;
+  background-repeat: repeat-x;
+  animation: spin-earth 26s linear infinite;
+}
+.intro-earth .day {
+  background-image: url("/textures/earth_day.jpg");
+}
+.intro-earth .night {
+  background-image: url("/textures/earth_night.jpg");
+  mix-blend-mode: screen;
+  filter: brightness(1.8) sepia(0.4) saturate(2.2) hue-rotate(-12deg);
+  /* city lights only on the night side */
+  -webkit-mask-image: linear-gradient(105deg, transparent 42%, #000 62%);
+  mask-image: linear-gradient(105deg, transparent 42%, #000 62%);
+}
+@keyframes spin-earth {
+  from {
+    background-position-x: 0;
+  }
+  to {
+    background-position-x: -200%;
+  }
+}
+/* sphere shading: sunlit limb on the left, night on the right */
+.intro-earth .shade {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 35%, rgba(255, 255, 255, 0.16), transparent 42%),
+    linear-gradient(105deg, transparent 38%, rgba(2, 5, 12, 0.88) 62%);
+  box-shadow: inset -24px -10px 50px rgba(0, 0, 0, 0.85), inset 6px 2px 18px rgba(140, 210, 255, 0.35);
+}
+/* a slow radar sweep over the planet */
+.intro-earth .sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  /* a faint trailing glow behind a thin bright leading line, like a radar scope */
+  background: conic-gradient(
+    from 0deg,
+    rgba(69, 184, 209, 0) 0deg,
+    rgba(69, 184, 209, 0) 250deg,
+    rgba(69, 184, 209, 0.14) 352deg,
+    rgba(170, 240, 255, 0.5) 359deg,
+    rgba(170, 240, 255, 0) 360deg
+  );
+  mix-blend-mode: screen;
+  animation: sweep 3.6s linear infinite;
+}
+@keyframes sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.intro-atmo {
+  position: absolute;
+  width: 66%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, transparent 66%, rgba(69, 184, 209, 0.35) 71%, transparent 76%);
+}
+
+/* ---------------------------------------------------------------- orbits */
+.intro-orbits {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  z-index: 2;
+}
+.orbit {
+  fill: none;
+  stroke-width: 1;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 1.6s cubic-bezier(0.3, 0.6, 0.2, 1) both;
+}
+.orbit.modis {
+  stroke: rgba(69, 184, 209, 0.75);
+  animation-delay: 0.5s;
+  filter: drop-shadow(0 0 4px #45b8d1);
+}
+.orbit.viirs {
+  stroke: rgba(255, 157, 67, 0.75);
+  animation-delay: 0.8s;
+  filter: drop-shadow(0 0 4px #ff9d43);
+}
+.sat {
+  animation: fade 0.6s ease-out 1.6s both;
+}
+.sat.modis {
+  fill: #bff1fb;
+  filter: drop-shadow(0 0 6px #45b8d1);
+}
+.sat.viirs {
+  fill: #ffe0bd;
+  filter: drop-shadow(0 0 6px #ff9d43);
+}
+
+/* ---------------------------------------------------------------- text */
+.intro-text {
+  position: relative;
+  z-index: 3;
+  max-width: 520px;
+}
+.intro-title {
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: clamp(64px, 9vw, 128px);
+  letter-spacing: 0.22em;
+  line-height: 1;
+  background: linear-gradient(180deg, #fff 35%, #9fd8e8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 28px rgba(69, 184, 209, 0.45));
+  animation: fade 0.8s ease-out 0.2s both;
+}
+.intro-sub {
+  margin: 14px 0 30px;
+  font-size: 10.5px;
+  color: var(--amber);
+  text-shadow: 0 0 12px rgba(255, 157, 67, 0.5);
+  animation: fade 0.8s ease-out 0.45s both;
+}
+.intro-log {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+  font-size: 10.5px;
+}
+.intro-log li {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(69, 184, 209, 0.12);
+  color: #6f8299;
+  animation: line-in 0.35s ease-out both;
+  transition: color 0.3s;
+}
+.intro-log li.ok {
+  color: #c4d2e0;
+}
+.intro-log li b {
+  font-weight: 500;
+  color: #51637a;
+}
+.intro-log li.ok b {
+  color: var(--cyan);
+  text-shadow: 0 0 10px rgba(69, 184, 209, 0.8);
+}
+.intro-bar {
+  height: 2px;
+  background: rgba(69, 184, 209, 0.15);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.intro-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #45b8d1, #ff9d43);
+  box-shadow: 0 0 12px #45b8d1;
+  transition: width 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.intro-status {
+  margin-top: 12px;
+  font-size: 10.5px;
+  color: #8fa6bd;
+  min-height: 1.5em;
+}
+.intro-status .ok {
+  color: var(--amber);
+  text-shadow: 0 0 14px rgba(255, 157, 67, 0.7);
+  animation: breathe 1.4s ease-in-out infinite;
+}
+.intro-status .err {
+  color: #ff8b7a;
+}
+
+/* ---------------------------------------------------------------- the hand-off */
+.intro-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 28% 50%, rgba(220, 245, 255, 0.95), rgba(69, 184, 209, 0.5) 30%, transparent 70%);
+  opacity: 0;
+}
+.intro.exit {
+  animation: intro-out 0.9s ease-in both;
+  pointer-events: none;
+}
+.intro.exit .intro-stage {
+  animation: dive 0.9s cubic-bezier(0.6, 0, 0.8, 0.4) both;
+}
+.intro.exit .intro-text {
+  animation: text-out 0.5s ease-in both;
+}
+.intro.exit .intro-flash {
+  animation: flash 0.9s ease-out both;
+}
+@keyframes dive {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(6);
+    filter: blur(6px) brightness(1.6);
+  }
+}
+@keyframes text-out {
+  to {
+    opacity: 0;
+    transform: translateX(40px);
+    filter: blur(6px);
+  }
+}
+@keyframes flash {
+  0%,
+  35% {
+    opacity: 0;
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes intro-out {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* return visits: a quicker version of the same sequence */
+.intro.short .intro-stage,
+.intro.short .intro-title,
+.intro.short .intro-sub,
+.intro.short .orbit,
+.intro.short .sat {
+  animation-duration: 0.5s;
+  animation-delay: 0s;
+}
+
+@media (max-width: 860px) {
+  .intro {
+    grid-template-columns: 1fr;
+    align-content: center;
+    gap: 6px;
+    padding: 0 8vw;
+  }
+  .intro-stage {
+    width: min(70vw, 340px);
+  }
+  .intro-text {
+    justify-self: center;
+    text-align: center;
+  }
+  .intro-log li {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro *,
+  .intro,
+  .intro-stars,
+  .intro-stars::after {
+    animation: none !important;
+  }
+  .orbit {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---------------------------------------------------------------- the original power-on screen, kept as the opening beat */
+.intro-boot {
+  position: absolute;
+  z-index: 4;
+  background: transparent;
+  cursor: inherit;
+  animation: boot-hand 0.5s ease-in 1.25s both;
+}
+@keyframes boot-hand {
+  to {
+    opacity: 0;
+    transform: scale(0.85);
+    filter: blur(6px);
+  }
+}
+.intro-boot .boot-lines span:nth-child(3) {
+  animation-delay: 0.9s;
+}
+/* its radar rings keep pulsing behind the Earth, so the two beats read as one sequence */
+.intro-radar {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  z-index: 0;
+  opacity: 0.55;
+}
+.intro-earth,
+.intro-atmo {
+  z-index: 1;
+}

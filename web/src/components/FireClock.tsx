@@ -95,7 +95,8 @@ export function FireClock({ data, regionId, t, onPick }: Props) {
               onMouseEnter={() => setHover({ year: c.year, week: c.week })}
               onMouseLeave={() => setHover(null)}
               onClick={() => onPick(c.t)}
-              style={{ cursor: "pointer" }}
+              className="clock-cell"
+              style={{ cursor: "pointer", animationDelay: `${ri * 26 + c.week * 4}ms` }}
             />
           );
         })}
