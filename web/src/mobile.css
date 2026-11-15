@@ -1,0 +1,244 @@
+/* ---------------------------------------------------------------------------------------------
+   Phones and small tablets. Loaded last so these rules win over the desktop layout.
+   Desktop and laptop screens (wider than 1100px) are untouched.
+--------------------------------------------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  /* Globe: the map first, then the news strip and the timeline, then the panels, all in one scroll */
+  .console .ov .ov-map {
+    order: -3;
+  }
+  .console .ov .wire,
+  .console .ov .wire-pill {
+    position: relative;
+    order: -2;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    align-self: stretch;
+  }
+  .console .ov .wire-pill {
+    align-self: flex-start;
+  }
+  .console .ov .ov-bottom.hud-panel {
+    /* relative, not static: it stays in the flow and still holds its decorative glow */
+    position: relative;
+    order: -1;
+    left: auto;
+    right: auto;
+    bottom: auto;
+  }
+  .console .ov .ov-col {
+    position: static;
+    width: auto;
+    overflow: visible;
+    animation: none;
+  }
+  /* the globe toolbar scrolls sideways instead of running off the screen */
+  .console .ov .ov-tools {
+    left: 8px;
+    right: 8px;
+    transform: none;
+    max-width: calc(100% - 16px);
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+  }
+  .console .ov .ov-tools::-webkit-scrollbar {
+    display: none;
+  }
+  .console .ov .ov-tools > * {
+    flex: none;
+  }
+  .console .ov .ov-note {
+    display: block;
+    top: 60px;
+    left: 8px;
+    right: 8px;
+    transform: none;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+@media (max-width: 760px) {
+  /* top bar: brand and sector on one row, region buttons on a second, sliding row */
+  .console .main {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .console .topbar {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    padding: 8px 10px;
+  }
+  .console .topbar .tb-sep,
+  .console .topbar h1 {
+    display: none;
+  }
+  .console .topbar .sector-btn {
+    padding: 5px 10px;
+    font-size: 12.5px;
+  }
+  .console .topbar .tb-regions {
+    flex: 1 1 100%;
+    order: 3;
+  }
+  .console .sector-panel {
+    position: fixed;
+    top: 54px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 70vh;
+  }
+
+  /* bottom tab bar: finger-sized, scrolls sideways */
+  .console .nav {
+    scrollbar-width: none;
+  }
+  .console .nav::-webkit-scrollbar {
+    display: none;
+  }
+  .console .nav .nav-btn.guide-btn {
+    margin-top: 0;
+  }
+  .console .nav .nav-btn {
+    flex: none;
+    min-height: 48px;
+  }
+
+  /* Fire Wire stacks: tag, headline, controls */
+  .console .ov .wire {
+    flex-direction: column;
+  }
+  .console .ov .wire-tag {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+  }
+  .console .ov .wire-ctl {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 8px 12px 12px !important;
+    border-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .console .ov .wire-sub {
+    display: block;
+    white-space: normal;
+  }
+  .console .ov .wire-title {
+    font-size: 15px;
+  }
+  .console .ov .wire-close {
+    top: 6px;
+    right: 8px;
+  }
+
+  /* globe map a little shorter so the numbers are reachable */
+  .console .ov .ov-map {
+    height: 48vh;
+  }
+  .console .ov .ov-bottom.hud-panel {
+    gap: 10px;
+    padding: 8px 10px 10px !important;
+  }
+
+  /* every multi-column grid becomes one column */
+  .fc-kpis,
+  .dl-grid,
+  .fc-row,
+  .fc-mapgrid,
+  .bp-grid,
+  .st-top,
+  .hz-top,
+  .dr-kpis,
+  .limits-grid,
+  .outlook-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .fc-kpis {
+    gap: 8px;
+  }
+  .fc-big {
+    font-size: 26px;
+  }
+  .fc-map {
+    height: 340px;
+  }
+  .fc-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .fc-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .fc-nav button {
+    flex: none;
+  }
+  /* week strips: colour only, the numbers would not fit */
+  .fc-cell b {
+    display: none;
+  }
+  .fc-strip {
+    margin-left: 0;
+    gap: 2px;
+  }
+  .card-head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .view-head h2 {
+    font-size: 26px !important;
+  }
+
+  /* map labels near the edge stay inside the map */
+  .console .ov .ov-map {
+    overflow: hidden;
+  }
+  /* Record: cards may shrink; the wide burning calendar scrolls sideways inside its card */
+  .record-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .view-pad .card,
+  .view-pad .detail {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  /* Orbit and the other scene pages: a little less side padding */
+  .view .scene-inner {
+    padding: 0 14px;
+  }
+
+  /* guided tour card fits the phone and sits at the bottom */
+  .guide-card {
+    width: calc(100vw - 24px) !important;
+  }
+}
+
+@media (max-width: 1100px) {
+  /* the timeline shrinks to the screen; its year labels never push the page wider */
+  .console .ov .ov-bottom.hud-panel {
+    overflow: hidden;
+    min-width: 0;
+  }
+  .console .ov .ov-bottom .timeline {
+    min-width: 0;
+    flex: 1;
+  }
+}
+
+@media (max-width: 1100px) {
+  /* pages never scroll sideways on a phone; panels clip their own light sweep */
+  .console .view {
+    overflow-x: hidden;
+  }
+  .console .ov .hud-panel {
+    overflow: hidden;
+  }
+}
