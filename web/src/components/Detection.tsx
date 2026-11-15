@@ -266,9 +266,10 @@ export function Detection({ demos, ratio }: { demos: DemoDay[]; ratio?: number }
     <section id="detection" ref={ref} className="scene scene-detect">
       <div className="scene-inner wide">
         <div className="scene-copy">
-          <div className="scene-code mono">DETECT · ONE DAY, PIXEL BY PIXEL</div>
+          <div className="step-chip amber mono"><b>STEP 1 OF 2</b> THE PROBLEM</div>
+          <div className="scene-code mono">PIXELS · ONE DAY, PIXEL BY PIXEL</div>
           <h2>
-            <Scramble text="Finding thermal anomalies" />
+            <Scramble text="Why do the sensors count differently?" />
           </h2>
           <p className="lede">
             Each glowing footprint is one hotspot: a pixel that looked hot to a satellite. It is a thermal anomaly, not a confirmed fire. This is a single day

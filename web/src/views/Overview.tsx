@@ -6,6 +6,23 @@ import { MapLegend, MapView, type MapFocus } from "../components/MapView";
 import { FireWire } from "../components/FireWire";
 import { summarizeWorld, useWorldFeed, type Headline } from "../world";
 import type { SectorEntry } from "../data";
+
+interface BoundaryFile {
+  levels: { country: GeoJSON.FeatureCollection; province: GeoJSON.FeatureCollection };
+  cells: Record<string, number[]>;
+}
+const boundaryCache = new Map<string, Promise<BoundaryFile>>();
+const loadBoundaries = (path: string) => {
+  if (!boundaryCache.has(path))
+    boundaryCache.set(
+      path,
+      fetch(`${import.meta.env.BASE_URL}${path}boundaries.json`).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }),
+    );
+  return boundaryCache.get(path)!;
+};
 import { dateAt, fmtDate, fmtNum, indexOf, levelFor, monthName, rollingMean } from "../lib";
 import { Ticker } from "../fx";
 
@@ -23,7 +40,7 @@ const avg = (a: Float32Array, t: number, h = 3) => {
 
 /* ---------------------------------------------------------------- small charts */
 
-function Donut({ m }: { m: Mission }) {
+function Donut({ m, compact = false }: { m: Mission; compact?: boolean }) {
   const { view, t } = m;
   const parts = useMemo(
     () =>
@@ -59,6 +76,18 @@ function Donut({ m }: { m: Mission }) {
           PER DAY
         </text>
       </svg>
+      {compact ? (
+        // the region boxes above already name each region, so here only each share is shown
+        <div className={`donut-shares ${parts.length > 4 ? "two" : ""}`}>
+          {parts.map((p) => (
+            <button key={p.id} className={m.regionId === p.id ? "on" : ""} onClick={() => m.setRegionId(p.id)} title={p.name}>
+              <i style={{ background: p.color }} />
+              <b>{total > 0 ? `${Math.round((100 * p.v) / total)}%` : "0%"}</b>
+              <span>{p.name}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
       <ul className="donut-legend">
         {parts.map((p) => (
           <li key={p.id}>
@@ -70,6 +99,7 @@ function Donut({ m }: { m: Mission }) {
           </li>
         ))}
       </ul>
+      )}
     </div>
   );
 }
@@ -173,6 +203,7 @@ function RecordStrip({ m }: { m: Mission }) {
 interface SectorNav {
   sectors: SectorEntry[];
   current: string;
+  path: string;
   onOpen: (id: string) => void;
 }
 
@@ -188,7 +219,7 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
         ? (meta.regions.find((r) => r.id === "study_area")?.name ?? "the whole sector")
         : "the whole study area"
       : regionId === "custom"
-        ? "your selected area"
+        ? (m.area?.name ?? "your selected area")
         : (meta.regions.find((r) => r.id === regionId)?.name ?? regionId);
   const named = meta.regions.filter((r) => r.id !== "study_area" && r.id !== "custom");
 
@@ -209,8 +240,56 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
     [feed.world, feed.grid],
   );
   const [worldOn, setWorldOn] = useState(false);
+  const [regionsOpen, setRegionsOpen] = useState(() => localStorage.getItem("ignis.regions") !== "closed");
+  const toggleRegions = (open: boolean) => {
+    setRegionsOpen(open);
+    localStorage.setItem("ignis.regions", open ? "open" : "closed");
+  };
+  // ---- country and province outlines: hover names them, a click selects one
+  type BorderLevel = "off" | "country" | "province";
+  const entry = nav?.sectors.find((x) => x.id === nav.current);
+  // Southeast Asia has no country list but spans several countries
+  const multiCountry = !entry?.countries || entry.countries.length > 1;
+  const [borders, setBorders] = useState<BorderLevel>(multiCountry ? "country" : "province");
+  const [bnd, setBnd] = useState<BoundaryFile | null>(null);
+  useEffect(() => {
+    if (!nav || borders === "off" || bnd) return;
+    let alive = true;
+    loadBoundaries(nav.path).then((b) => alive && setBnd(b)).catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [nav, borders, bnd]);
+  const outlines = borders === "off" || !bnd ? null : bnd.levels[borders];
+  const pickBoundary = (id: string) => {
+    if (!bnd) return;
+    if (m.aoi?.id === id) {
+      m.clearArea();
+      return;
+    }
+    const f = [...bnd.levels.country.features, ...bnd.levels.province.features].find((x) => x.properties?.id === id);
+    const cells = bnd.cells[id];
+    if (!f || !cells?.length) return;
+    const p = f.properties as { name: string; country: string; bbox: [number, number, number, number] };
+    m.pickArea({
+      west: p.bbox[0],
+      south: p.bbox[1],
+      east: p.bbox[2],
+      north: p.bbox[3],
+      cells,
+      id,
+      name: p.country !== p.name ? `${p.name}, ${p.country}` : p.name,
+      outline: f.geometry,
+    });
+  };
   const [idx, setIdx] = useState(0);
   const [tour, setTour] = useState(false);
+  const [wireOpen, setWireOpen] = useState(() => localStorage.getItem("ignis.wire") !== "closed");
+  const toggleWire = (open: boolean) => {
+    setWireOpen(open);
+    if (!open) setTour(false);
+    localStorage.setItem("ignis.wire", open ? "open" : "closed");
+  };
   const [focus, setFocus] = useState<MapFocus | null>(null);
   const dwell = tour ? 11 : 8;
   const heads = world?.headlines ?? [];
@@ -240,6 +319,13 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, tour, heads.length]);
+  // Esc stops the tour
+  useEffect(() => {
+    if (!tour) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setTour(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [tour]);
   const updated = feed.world?.latest ? `${feed.world.latest.slice(11, 16)} UTC` : null;
 
   const story = info.none
@@ -261,6 +347,9 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
           regionId={regionId}
           mode={m.mapMode}
           aoi={m.area?.snapped ?? null}
+          boundaries={outlines}
+          selectedBoundary={m.aoi?.id ?? null}
+          onPickBoundary={pickBoundary}
           drawing={m.drawing}
           onDraw={m.onDraw}
           nav={false}
@@ -319,7 +408,7 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
         )}
       </div>
       {(m.drawMsg || m.isCustom) && !m.drawing && (
-        <div className="ov-note mono">{m.drawMsg ?? `YOUR AREA · ${m.area!.totalCells} GRID CELLS · WEEKLY VALUES · NO UNCERTAINTY RANGE`}</div>
+        <div className="ov-note mono">{m.drawMsg ?? `${(m.area!.name ?? "YOUR AREA").toUpperCase()} · ${m.area!.totalCells} GRID CELL${m.area!.totalCells === 1 ? "" : "S"} · WEEKLY VALUES · NO UNCERTAINTY RANGE${m.aoi?.id ? " · CLICK AGAIN OR ✕ TO CLEAR" : ""}`}</div>
       )}
 
       <FireWire
@@ -335,6 +424,8 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
           setTour(on);
           if (on) pickHead(idx);
         }}
+        open={wireOpen}
+        onOpen={toggleWire}
         onOpenSector={nav ? (id) => (id === nav.current ? backToArchive() : nav.onOpen(id)) : undefined}
       />
 
@@ -388,6 +479,52 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
       {!worldOn && (
       <>
       <aside className="ov-col ov-left">
+        {named.length > 1 && (
+          <div className={`hud-panel glass region-boxes ${regionsOpen ? "" : "closed"}`}>
+            <button className="panel-head rb-toggle" onClick={() => toggleRegions(!regionsOpen)} aria-expanded={regionsOpen}>
+              <span className="mono">REGIONS</span>
+              <span className="mono dim">
+                {regionsOpen ? "7-DAY MEAN · VS NORMAL" : ""} <i className="rb-chev">{regionsOpen ? "▾" : "▸"}</i>
+              </span>
+            </button>
+            {!regionsOpen && (
+              <button className="rb-expand" onClick={() => toggleRegions(true)}>
+                Expand to view regions
+                <span className="mono dim">
+                  {named.length} REGIONS · SHOWING {(regionId === "study_area" ? "ALL" : (meta.regions.find((r) => r.id === regionId)?.name ?? "ALL")).toUpperCase()}
+                </span>
+              </button>
+            )}
+            {regionsOpen && (
+            <div className={`rb-grid ${named.length > 4 ? "three" : ""}`}>
+              {named.map((r) => {
+                const sr = view.daily.regions[r.id];
+                const v = sr ? avg(sr.harm, t) : NaN;
+                const n = sr ? sr.norm[t] : NaN;
+                const ratio = n > 0 ? v / n : NaN;
+                return (
+                  <button
+                    key={r.id}
+                    className={`rb ${regionId === r.id ? "on" : ""}`}
+                    style={{ ["--rc" as string]: r.color }}
+                    onClick={() => m.setRegionId(regionId === r.id ? "study_area" : r.id)}
+                    title={regionId === r.id ? "Click again for all regions" : `Show ${r.name}`}
+                  >
+                    <span className="rb-name">
+                      <i style={{ background: r.color }} />
+                      {r.name}
+                    </span>
+                    <span className="rb-v">
+                      <b>{Number.isNaN(v) ? "n/a" : fmtNum(v)}</b>
+                      <em className={ratio >= 1.5 ? "hot" : ratio <= 0.75 ? "cool" : ""}>{Number.isNaN(ratio) ? "" : `${ratio.toFixed(1)}×`}</em>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            )}
+          </div>
+        )}
         <div className="hud-panel glass kpis">
           <div className="kpi">
             <div className="mono k">DETECTIONS / DAY</div>
@@ -413,7 +550,7 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
               <span className="mono">WHERE IT IS BURNING</span>
               <span className="mono dim">7-DAY MEAN</span>
             </div>
-            <Donut m={m} />
+            <Donut m={m} compact />
           </div>
         ) : (
           <div className="hud-panel glass">
@@ -436,6 +573,18 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
 
         <div className="hud-panel glass legend-panel">
           <MapLegend cell={meta.cell} />
+          {nav && (
+            <div className="borders-row">
+              <span className="mono">BORDERS</span>
+              <div className="seg" role="group" aria-label="Borders">
+                {(multiCountry ? (["off", "country", "province"] as BorderLevel[]) : (["off", "province"] as BorderLevel[])).map((l) => (
+                  <button key={l} className={borders === l ? "on" : ""} onClick={() => setBorders(l)} title={l === "off" ? "Hide borders" : `Hover to name, click to select a ${l}`}>
+                    {l === "off" ? "Off" : l === "country" ? "Countries" : multiCountry ? "Provinces" : "States"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </aside>
 

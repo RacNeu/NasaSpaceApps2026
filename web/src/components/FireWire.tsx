@@ -14,12 +14,20 @@ interface Props {
   onPick: (i: number) => void;
   onTour: (on: boolean) => void;
   onOpenSector?: (id: string) => void;
+  open: boolean;
+  onOpen: (open: boolean) => void;
 }
 
 /** A breaking-news strip fed by the live planet-wide feed; each item flies the globe to its place. */
-export function FireWire({ headlines, index, dwell, tour, worldOn, status, updated, onPick, onTour, onOpenSector }: Props) {
+export function FireWire({ headlines, index, dwell, tour, worldOn, status, updated, onPick, onTour, onOpenSector, open, onOpen }: Props) {
   const h = headlines[index];
   const n = headlines.length;
+  if (!open)
+    return (
+      <button className={`wire-pill mono ${worldOn ? "world" : ""}`} onClick={() => onOpen(true)} title="Show the Fire Wire">
+        <i className="rec" /> FIRE WIRE{status === "ready" && n ? ` · ${n} HEADLINES` : ""} <span>▴</span>
+      </button>
+    );
   return (
     <div className={`wire glass ${worldOn ? "world" : ""}`} role="region" aria-label="Fire Wire: live headlines">
       <div className="wire-tag">
@@ -50,6 +58,9 @@ export function FireWire({ headlines, index, dwell, tour, worldOn, status, updat
         </button>
       )}
 
+      <button className="wire-close" onClick={() => onOpen(false)} aria-label="Hide the Fire Wire" title="Hide">
+        ✕
+      </button>
       <div className="wire-ctl">
         {status === "ready" && n > 0 && (
           <>
@@ -65,7 +76,7 @@ export function FireWire({ headlines, index, dwell, tour, worldOn, status, updat
               </button>
             </div>
             <button className={`wire-tour mono ${tour ? "on" : ""}`} onClick={() => onTour(!tour)} aria-pressed={tour}>
-              {tour ? "❚❚ TOUR ON" : "▶ AUTO TOUR"}
+              {tour ? "■ STOP TOUR" : "▶ AUTO TOUR"}
             </button>
             {h?.sectorId && worldOn && onOpenSector && (
               <button className="wire-open mono" onClick={() => onOpenSector(h.sectorId!)}>

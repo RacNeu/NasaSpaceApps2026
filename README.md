@@ -12,17 +12,17 @@ Ignis is a single-screen mission console, not a scrolling page. A rail on the le
 | View | What it shows |
 |---|---|
 | **Globe** | The main screen. An interactive 3D globe (NASA Blue Marble) with a live Fire Wire news strip and a Live Earth mode (see below), and the week's fire activity as 3D columns (height and colour follow each cell's detections; switch to a heat glow or a flat grid), the selected region highlighted, and numbered pulsing markers on the three hottest areas. Floating panels show detections per day, how far above normal, the percentile, where it is burning, the year so far and the biggest episodes. A timeline of the whole record scrubs and plays through time. |
-| **Live** | The last seven days of NOAA-20 and NOAA-21 detections from FIRMS near-real-time data, ranked against every comparable week in the 2001–2025 record. Each region gets an early-warning level, the newest fires glow brightest on the globe, and markers flag the busiest areas of the last 48 hours. |
+| **Live** | The last seven days of NOAA-20 and NOAA-21 detections from FIRMS near-real-time data, ranked against every comparable week in the record since 2001. Each region gets an early-warning level, the newest fires glow brightest on the globe, and markers flag the busiest areas of the last 48 hours. |
 | **Record** | The burning calendar (one row per year), the fire clock and the per-sensor year chart, with the uncertainty band where values are estimated. |
 | **Orbit** | A 3D Earth with the five satellites on their inclined orbits and a readout for each. Period and speed are computed from altitude with Kepler's third law. Day and night follow the real sun at the current UTC time, the selected satellite's imaging swath is drawn on the ground at its true width (2,330 km for MODIS, about 3,000 km for VIIRS), and a beacon on each sector opens it. |
-| **Detect** | One real day over the true satellite photograph, each hotspot drawn at its sensor's true pixel size, plus a pixel lab: one 1 km MODIS pixel split into 375 m VIIRS pixels, with scenarios (two fires in one pixel, a small fire, a large fire front) and a free mode showing why VIIRS reports more hotspots. |
-| **Match** | Live detection matching with adjustable distance and time tolerances, and three charts that explain the result. |
-| **Insights** | Six headline numbers computed from the data, who could use the record, and what comes next. |
-| **Method** | Held-out validation, the method, its limits, credits and downloads (CSV and JSON). |
+| **Pixels** (step 1) | One real day over the true satellite photograph, each hotspot drawn at its sensor's true pixel size, plus a pixel lab: one 1 km MODIS pixel split into 375 m VIIRS pixels, with scenarios (two fires in one pixel, a small fire, a large fire front) and a free mode showing why VIIRS reports more hotspots. |
+| **Verify** (step 2) | Live detection matching with adjustable distance and time tolerances, and three charts that explain the result. |
+| **Forecast** | A 26-week fire outlook for each region: expected weekly detections with an 80% range, the chance each week is above normal or critical, this month against the historical median, the El Niño index, a replay of past years and the model's skill on held-out years. Downloadable as CSV. |
+| **Method** | Held-out validation, the method, its limits and credits, plus downloads: the harmonized fire record for any date range, daily or as monthly totals with each month's rank (CSV that opens in Excel), the calibration and the matching (JSON). |
 
 The selected date, region and area are shared by every view, so jumping to an episode on the globe moves the calendar too. Each view has its own address (for example `#record`), so the browser's back button and shared links work.
 
-Every view except Live replays the historical archive (2001 to 2025), and the interface says which is which.
+The record runs from 2001 to the latest complete day: 2026 comes from NOAA-20 alone (standard data to July, near-real-time after). Live and Fire Wire show the last days as they happen, and the Forecast looks ahead.
 
 ### The Live view
 
@@ -30,11 +30,35 @@ A small server function (`web/api/firms.ts`, shared logic in `web/api/_live.ts`)
 
 Limits: near-real-time data is preliminary; static heat sources such as gas flares are not filtered out, so quiet-season counts can read a little high; and a day with no NOAA-20 detections at all is flagged as a probable data gap. Responses are cached for 15 minutes on the server and 30 minutes at the CDN to protect the key's request quota.
 
+### Countries and provinces
+
+On the Globe view, the **Borders** switch (under the map legend) draws country or province (state) outlines from Natural Earth 1:10m admin-1 data. Hovering names an outline and a click selects it: every view then shows that country or province, from its burning calendar to the CSV download, and the selection appears as a region button in the top bar. Click again or ✕ to clear. `pipeline/build_boundaries.py` simplifies the outlines, dissolves provinces into countries, and lists the grid cells whose centre falls inside each outline; an outline too small to hold a cell centre takes the cells it overlaps most and is flagged as approximate. Like a drawn area, a selected province uses the weekly harmonized grid and has no uncertainty range, and the forecast stays at region level.
+
+### The forecast
+
+`pipeline/build_forecast.py` writes `forecast.json` next to each sector's data. It works on weekly totals on a log scale. The normal for each week of the year is the median of that week across the other years of the harmonized record. For each region and each lead time from 1 to 26 weeks, a ridge regression predicts how far above or below normal the week will be, from how unusual the last 4 and 12 weeks were and from NOAA's Oceanic Niño Index. The index's effect is allowed to change through the year, and only values already published on the issue date are used. Every year is forecast by a model fitted without it; those held-out errors set the 80% range, the chances of an above-normal or critical week (above the 90th percentile for that week of the year), and the skill scores shown on the site, including the same model without the El Niño input.
+
+Held-out results: four weeks ahead, the error is 6 to 20% smaller than simply expecting a normal year in most sectors, and the El Niño input adds several points at longer leads in Southeast Asia and Brazil. Canada, where lightning starts most large fires, gains almost nothing beyond two weeks. The model knows past fire activity and El Niño, not this season's rainfall, wind or fuel.
+
+**Drought input.** `pipeline/pull_weather.py` downloads daily rainfall and 50 m wind from NASA POWER (MERRA-2 and GEOS) at the four cells in each region that burn most, weighted by how much each burns. The forecast adds how unusual the last 30 and 90 days of rain were for the time of year (a standardized anomaly, using rain available two days before each issue date) and lets that effect change through the year. The Forecast view shows the last 30 and 90 days of rain as a percentage of normal, the last year of dryness, and the accuracy with and without rainfall. The gain is modest (about 1 to 2 points eight weeks ahead), because past rain cannot foresee the rain still to come.
+
+**Season timing.** A region's fire season is the run of weeks when burning (3-week average) is above its average week across the record. The view shows every past season's start and end around the usual peak, the usual season, and the forecast's start or end date with a range from its low and high paths, plus whether that is earlier or later than usual.
+
+**Haze outlook (Southeast Asia).** Haze potential for Peninsular Malaysia and Singapore is the expected fire activity in Sumatra and Kalimantan, each weighted by the share of days the 50 m wind blows towards the Peninsula (from about 200° for Sumatra and 120° for Kalimantan, ±45°). Past weeks use the wind that blew, coming weeks the usual wind for the time of year, and levels rank each week against all weeks since 2001 (moderate top 30%, high top 10%, very high top 3%). Checked against the record, the highest weeks fall in 2002, 2019, 2006, 2026, 2015 and 2009, the years of major haze. It is a potential for smoke to be produced and carried towards the Peninsula, not an air-quality forecast.
+
+**Burn-window planner.** For land managers and farmers who burn on purpose, the Forecast view rates every coming week: lower risk (under a 10% chance of a critical week and under 50% of an above-normal week), caution, or avoid (25% or more chance of a critical week, or 70% of an above-normal one). For a chosen length of 1, 2 or 4 weeks it finds the lowest-risk windows with no week to avoid, lists the periods to avoid, and exports the best window as a calendar event (.ics). Weeks beyond the range where the forecast beats a typical year are shaded. It is a planning aid only: it knows the regional fire outlook, not the weather on the day, smoke dispersal or local burn rules.
+
+**Predicted burning.** The Forecast view also draws the outlook on a globe as 3D columns for the next 4 weeks, weeks 5 to 8 or weeks 9 to 13. Column height is the expected weekly detections in each grid cell; colour compares that with the cell's normal for the time of year. The cell values share out each region's validated forecast by where that region usually burns at that time of year (75%) and where it has burned in the last 8 weeks (25%), so the map shows where to look rather than making a separate prediction for every cell. A panel lists the places to watch and flies the camera to each.
+
 ### Fire Wire and Live Earth
 
 The Globe view carries a breaking-news strip, the **Fire Wire**, fed by the same function with `?sector=world`: the last two days of NOAA-20 and NOAA-21 detections for the whole planet (about 150,000 detections, 13 MB of CSV from FIRMS), aggregated on the server to a 0.5° grid of about 8,500 cells and a 190 KB response. The browser names each cell's country from a precomputed lookup grid (`web/public/data/countrygrid.json`, built from Natural Earth 1:50m by `web/scripts/build_countrygrid.mjs`) and writes the headlines: the planet total, the most active countries, the most intense cluster by fire radiative power, and each archive sector's count. Headlines rotate on their own; clicking one, or turning on **Auto tour**, switches the globe to **Live Earth**, where every cell on the planet is a 3D column, and flies the camera there. Headlines inside an archive sector offer a jump into that sector's 25-year record. The world response is cached for 30 minutes on the server and at the CDN.
 
 The MAP_KEY stays on the server. It is never sent to the browser or committed.
+
+### Guided tour
+
+The **Guide** button in the side rail (above the sound switch) starts a 22-step tour of every feature: it opens each page, scrolls the feature into view, spotlights it and explains what it shows and how to use it. Next and Back (or the arrow keys) move through it, Esc closes it, and a small dot marks the button until the tour has been opened once.
 
 ### Sectors
 
@@ -44,9 +68,16 @@ A **Sector** box in the top bar switches the whole console between places. Every
 |---|---|---|
 | **Southeast Asia** (default, detailed) | Peninsular Malaysia, Sumatra, Kalimantan, Sarawak/Sabah/Brunei | 0.5° |
 | **Mainland Southeast Asia** | Thailand, Myanmar, Laos, Cambodia, Vietnam | 0.5° |
-| **Australia**, **Brazil**, **United States**, **Canada** | the country | 1° |
+| **Central Africa** (northern savanna) | Central African Republic, South Sudan, Sudan, Chad | 1° |
+| **India** | North, West, Central, East, Northeast, South | 1° |
+| **Brazil** | North, Northeast, Centre-West, Southeast, South (the official macro-regions) | 1° |
+| **United States** | West Coast, Interior West, Great Plains and Texas, Southeast, Midwest and Northeast, Alaska and Hawaii | 1° |
+| **Canada** | British Columbia, Prairies, Ontario and Quebec, Atlantic, The North | 1° |
+| **Australia** | Northern Territory, Queensland, Western Australia, New South Wales and ACT, South (Victoria, Tasmania, SA) | 1° |
 
-The detailed sector alone has detection-level matching, the pixel-scale demo days and hand-drawn sub-regions. The others are built from the FIRMS yearly country files, so each detection's country is FIRMS's own attribution, and static heat sources are filtered with the same `type` rule. Each sector is loaded only when someone picks it, and the address keeps it (`?sector=australia`). The Live view works for every sector, and Insights compares how large the MODIS-to-VIIRS gap is in each one.
+Single-country sectors are split into groups of states (defined in `pipeline/sectors.py`): each grid cell goes to the group whose states contain its centre, from Natural Earth outlines, and each group is harmonized, validated and forecast on its own, so the Forecast view gives, say, the West Coast and the Southeast separate outlooks.
+
+The detailed sector alone has detection-level matching, the pixel-scale demo days and hand-drawn sub-regions. The others are built from the FIRMS yearly country files, so each detection's country is FIRMS's own attribution, and static heat sources are filtered with the same `type` rule. Each sector is loaded only when someone picks it, and the address keeps it (`?sector=australia`). The Live view works for every sector, and Method compares how large the MODIS-to-VIIRS gap is in each one.
 
 ### Selecting your own area
 
@@ -110,7 +141,17 @@ python pipeline/match_sensors.py
 
 # the other sectors (public bulk files, no key needed; keep the cache outside the repo)
 python pipeline/pull_countries.py --cache ../NasaSpaceApps/pipeline/cache_sectors
-python pipeline/build_sector.py --cache ../NasaSpaceApps/pipeline/cache_sectors
+python pipeline/build_sector.py --cache ../NasaSpaceApps/pipeline/cache_sectors --ne <path to ne_10m_admin_1_states_provinces.geojson>
+
+# bring every sector up to yesterday with NOAA-20 (needs the key), then rebuild and forecast
+FIRMS_MAP_KEY=... python pipeline/pull_recent.py --sea-cache ../NasaSpaceApps/pipeline/cache --sector-cache ../NasaSpaceApps/pipeline/cache_sectors --force
+IGNIS_CACHE=../NasaSpaceApps/pipeline/cache python pipeline/build_dataset.py
+python pipeline/build_sector.py --cache ../NasaSpaceApps/pipeline/cache_sectors --ne <path to ne_10m_admin_1_states_provinces.geojson>
+python pipeline/pull_weather.py --cache ../NasaSpaceApps/pipeline/cache_weather
+python pipeline/build_forecast.py --weather ../NasaSpaceApps/pipeline/cache_weather
+
+# country and province outlines for the globe (Natural Earth 1:10m admin-1, from naturalearthdata.com)
+python pipeline/build_boundaries.py --ne <path to ne_10m_admin_1_states_provinces.geojson>
 
 # the country lookup grid used to name live hotspots (run from web/, takes about two minutes)
 node scripts/build_countrygrid.mjs

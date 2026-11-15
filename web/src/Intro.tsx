@@ -83,7 +83,7 @@ export function Intro({ loaded, ready, error, onReveal, onDone, reduced }: Props
           <div className="boot-lines mono">
             <span>FIRE WATCH CONSOLE · MODIS × VIIRS HARMONIZATION</span>
             <span>LINKING TERRA · AQUA · SUOMI NPP · NOAA-20</span>
-            <span>OPENING THE 2001–2025 ARCHIVE</span>
+            <span>OPENING THE 2001–2026 ARCHIVE</span>
           </div>
         </div>
       )}

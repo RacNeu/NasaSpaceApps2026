@@ -51,9 +51,10 @@ export function Harmonization({ demos, matching }: { demos: DemoDay[]; matching:
     <section id="harmonization" ref={ref} className="scene scene-harm">
       <div className="scene-inner wide">
         <div className="scene-copy">
-          <div className="scene-code mono">MATCH · DETECTION-LEVEL HARMONIZATION</div>
+          <div className="step-chip teal mono"><b>STEP 2 OF 2</b> THE PROOF</div>
+          <div className="scene-code mono">VERIFY · DETECTION-LEVEL MATCHING</div>
           <h2>
-            <Scramble text="Bringing observations together" />
+            <Scramble text="Do the sensors see the same fires?" />
           </h2>
           <p className="lede">
             Drawing both sensors on one map is not harmonization. Two detections only count as the same event if they agree in space and in

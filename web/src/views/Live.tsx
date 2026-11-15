@@ -407,7 +407,7 @@ export function Live({ m, go }: { m: Mission; go: (v: ViewId) => void }) {
             <span className="mono">HOW TO READ THIS</span>
           </div>
           <ul className="live-notes">
-            <li>The last seven complete UTC days of NOAA-20 detections, ranked against every comparable week in the 2001–2025 record. Today is shown but not counted.</li>
+            <li>The last seven complete UTC days of NOAA-20 detections, ranked against every comparable week in the record since 2001. Today is shown but not counted.</li>
             <li>Live data is FIRMS near-real-time, which is preliminary. Gas flares and other static heat sources are not filtered out yet, so counts can run a little high.</li>
             <li>NOAA-21 is shown for comparison. The record's scale is NOAA-20, so the ranking uses NOAA-20 only.</li>
             <li>Brightest points are the newest; red points are up to a week old.</li>
