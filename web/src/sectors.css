@@ -479,9 +479,264 @@
 .ov-tools .seg button {
   white-space: nowrap;
 }
-.ov .ov-note {
-  top: 108px;
+
+/* borders switch: one compact row inside the legend panel, out of the way of the map */
+.borders-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
-.ov .map-status {
-  top: 108px;
+.borders-row > .mono {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: #8fa3b6;
+}
+.borders-row .seg {
+  display: flex;
+  flex: 1;
+}
+.borders-row .seg button {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+/* region boxes at the top of the globe's left column */
+.rb-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.rb {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 9px;
+  text-align: left;
+  border-radius: 8px;
+  color: #dbe8f3;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.rb:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.rb.on {
+  border-color: var(--rc);
+  background: color-mix(in srgb, var(--rc) 16%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--rc) 35%, transparent);
+}
+.rb-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rb-name i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.rb-v {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+.rb-v b {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+}
+.rb-v em {
+  font-style: normal;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  color: #9fb2c4;
+}
+.rb-v em.hot {
+  color: #ff7a5c;
+}
+.rb-v em.cool {
+  color: #7cc3dc;
+}
+.rb:nth-child(odd):last-child {
+  grid-column: span 2;
+}
+/* keep the left column within one screen */
+.region-boxes .panel-head {
+  margin-bottom: 6px;
+}
+.rb {
+  padding: 5px 8px;
+  gap: 1px;
+}
+.rb-v b {
+  font-size: 15px;
+}
+.rb-grid {
+  gap: 5px;
+}
+.rb-grid.three {
+  grid-template-columns: repeat(3, 1fr);
+}
+.rb-grid.three .rb:nth-child(odd):last-child {
+  grid-column: auto;
+}
+.donut-shares {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.donut-shares button {
+  display: grid;
+  grid-template-columns: 10px 38px 1fr;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 11px;
+  color: #a9bacb;
+  background: none;
+  border: 0;
+  text-align: left;
+}
+.donut-shares button.on,
+.donut-shares button:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.donut-shares i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.donut-shares b {
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 500;
+  color: #f2f6fa;
+}
+.donut-shares span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* region boxes: keep long names inside their box */
+.rb {
+  min-width: 0;
+  overflow: hidden;
+}
+.rb-name {
+  min-width: 0;
+}
+.rb-name span,
+.rb-name {
+  text-overflow: ellipsis;
+}
+.rb-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.rb-grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+/* collapsing the regions panel */
+.rb-toggle {
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+}
+.rb-chev {
+  font-style: normal;
+  margin-left: 4px;
+  color: #c3d1de;
+}
+.region-boxes.closed .panel-head {
+  margin-bottom: 6px;
+}
+.rb-expand {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #dbe8f3;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+}
+.rb-expand:hover {
+  border-color: rgba(69, 184, 209, 0.6);
+  color: #fff;
+}
+.rb-expand .mono {
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+}
+/* long region names wrap onto a second line rather than being cut */
+.rb-name {
+  white-space: normal;
+  align-items: flex-start;
+  line-height: 1.25;
+}
+.rb-name i {
+  margin-top: 4px;
+}
+.rb {
+  justify-content: space-between;
+}
+
+/* Method: the steps and the acknowledgment share the left column */
+.limits-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.limits-col > .v-box {
+  margin: 0;
+}
+.donut-shares.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 4px;
+}
+.donut-shares.two button {
+  grid-template-columns: 8px 30px 1fr;
+  gap: 4px;
+}
+/* long country names wrap; keep each box compact so the column still fits */
+.rb {
+  padding: 4px 8px;
+}
+.rb-name {
+  font-size: 11px;
+  line-height: 1.15;
+}
+.rb-v b {
+  font-size: 14px;
+}
+.region-boxes.hud-panel {
+  padding-bottom: 10px;
+}
+/* the legend and the borders row stack, so the legend keeps its full width */
+.ov .legend-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }

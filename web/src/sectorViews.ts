@@ -8,6 +8,8 @@ export const VIEW_BOX: Record<string, [number, number, number, number]> = {
   brazil: [-74, -34, -34, 6],
   united_states: [-126, 24, -66, 50],
   canada: [-136, 44, -56, 66],
+  india: [68, 7, 98, 36],
+  central_africa: [13, 2, 36, 16],
 };
 
 export const viewBox = (meta: { box: [number, number, number, number]; sector?: { id: string } }) =>

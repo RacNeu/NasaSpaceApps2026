@@ -32,7 +32,7 @@ Limits: near-real-time data is preliminary; static heat sources such as gas flar
 
 ### Countries and provinces
 
-On the Globe view, the **Borders** row draws country or province (state) outlines from Natural Earth 1:10m admin-1 data. Hovering names an outline and a click selects it: every view then shows that country or province, from its burning calendar to the CSV download, and the selection appears as a region button in the top bar. Click again or ✕ to clear. `pipeline/build_boundaries.py` simplifies the outlines, dissolves provinces into countries, and lists the grid cells whose centre falls inside each outline; an outline too small to hold a cell centre takes the cells it overlaps most and is flagged as approximate. Like a drawn area, a selected province uses the weekly harmonized grid and has no uncertainty range, and the forecast stays at region level.
+On the Globe view, the **Borders** switch (under the map legend) draws country or province (state) outlines from Natural Earth 1:10m admin-1 data. Hovering names an outline and a click selects it: every view then shows that country or province, from its burning calendar to the CSV download, and the selection appears as a region button in the top bar. Click again or ✕ to clear. `pipeline/build_boundaries.py` simplifies the outlines, dissolves provinces into countries, and lists the grid cells whose centre falls inside each outline; an outline too small to hold a cell centre takes the cells it overlaps most and is flagged as approximate. Like a drawn area, a selected province uses the weekly harmonized grid and has no uncertainty range, and the forecast stays at region level.
 
 ### The forecast
 
@@ -64,7 +64,14 @@ A **Sector** box in the top bar switches the whole console between places. Every
 |---|---|---|
 | **Southeast Asia** (default, detailed) | Peninsular Malaysia, Sumatra, Kalimantan, Sarawak/Sabah/Brunei | 0.5° |
 | **Mainland Southeast Asia** | Thailand, Myanmar, Laos, Cambodia, Vietnam | 0.5° |
-| **Australia**, **Brazil**, **United States**, **Canada** | the country | 1° |
+| **Central Africa** (northern savanna) | Central African Republic, South Sudan, Sudan, Chad | 1° |
+| **India** | North, West, Central, East, Northeast, South | 1° |
+| **Brazil** | North, Northeast, Centre-West, Southeast, South (the official macro-regions) | 1° |
+| **United States** | West Coast, Interior West, Great Plains and Texas, Southeast, Midwest and Northeast, Alaska and Hawaii | 1° |
+| **Canada** | British Columbia, Prairies, Ontario and Quebec, Atlantic, The North | 1° |
+| **Australia** | Northern Territory, Queensland, Western Australia, New South Wales and ACT, South (Victoria, Tasmania, SA) | 1° |
+
+Single-country sectors are split into groups of states (defined in `pipeline/sectors.py`): each grid cell goes to the group whose states contain its centre, from Natural Earth outlines, and each group is harmonized, validated and forecast on its own, so the Forecast view gives, say, the West Coast and the Southeast separate outlooks.
 
 The detailed sector alone has detection-level matching, the pixel-scale demo days and hand-drawn sub-regions. The others are built from the FIRMS yearly country files, so each detection's country is FIRMS's own attribution, and static heat sources are filtered with the same `type` rule. Each sector is loaded only when someone picks it, and the address keeps it (`?sector=australia`). The Live view works for every sector, and Method compares how large the MODIS-to-VIIRS gap is in each one.
 
@@ -130,12 +137,12 @@ python pipeline/match_sensors.py
 
 # the other sectors (public bulk files, no key needed; keep the cache outside the repo)
 python pipeline/pull_countries.py --cache ../NasaSpaceApps/pipeline/cache_sectors
-python pipeline/build_sector.py --cache ../NasaSpaceApps/pipeline/cache_sectors
+python pipeline/build_sector.py --cache ../NasaSpaceApps/pipeline/cache_sectors --ne <path to ne_10m_admin_1_states_provinces.geojson>
 
 # bring every sector up to yesterday with NOAA-20 (needs the key), then rebuild and forecast
 FIRMS_MAP_KEY=... python pipeline/pull_recent.py --sea-cache ../NasaSpaceApps/pipeline/cache --sector-cache ../NasaSpaceApps/pipeline/cache_sectors --force
 IGNIS_CACHE=../NasaSpaceApps/pipeline/cache python pipeline/build_dataset.py
-python pipeline/build_sector.py --cache ../NasaSpaceApps/pipeline/cache_sectors
+python pipeline/build_sector.py --cache ../NasaSpaceApps/pipeline/cache_sectors --ne <path to ne_10m_admin_1_states_provinces.geojson>
 python pipeline/pull_weather.py --cache ../NasaSpaceApps/pipeline/cache_weather
 python pipeline/build_forecast.py --weather ../NasaSpaceApps/pipeline/cache_weather
 

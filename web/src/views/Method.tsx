@@ -139,16 +139,27 @@ export function Method({ m }: { m: Mission }) {
       <SectorCompare currentId={meta.sector?.id ?? "sea"} />
 
       <div className="limits-grid">
-        <div className="v-box">
-          <h3>Method in six steps</h3>
-          <ol className="steps">
-            <li>Reference scale: NOAA-20 VIIRS 375 m, the satellite that carries the record forward.</li>
-            <li>Suomi NPP is aligned to it with a per-region ratio from days both observed (about 1.0).</li>
-            <li>MODIS is mapped to VIIRS with a per-region seasonal regression of log(1 + weekly detections).</li>
-            <li>Uncertainty comes from leave-one-year-out cross-validation, so every band reflects error on years the model never saw.</li>
-            <li>Each week is ranked against the same time of year in all other years, never including the year being judged.</li>
-            <li>The forecast predicts each coming week's departure from normal from recent weeks and the El Niño index, and is scored on held-out years.</li>
-          </ol>
+        <div className="limits-col">
+          <div className="v-box">
+            <h3>Method in six steps</h3>
+            <ol className="steps">
+              <li>Reference scale: NOAA-20 VIIRS 375 m, the satellite that carries the record forward.</li>
+              <li>Suomi NPP is aligned to it with a per-region ratio from days both observed (about 1.0).</li>
+              <li>MODIS is mapped to VIIRS with a per-region seasonal regression of log(1 + weekly detections).</li>
+              <li>Uncertainty comes from leave-one-year-out cross-validation, so every band reflects error on years the model never saw.</li>
+              <li>Each week is ranked against the same time of year in all other years, never including the year being judged.</li>
+              <li>The forecast predicts each coming week's departure from normal from recent weeks, the El Niño index and recent rainfall, and is scored on held-out years.</li>
+            </ol>
+          </div>
+          <div className="v-box">
+            <h3>Data and acknowledgment</h3>
+            <p className="ack">
+              We acknowledge the use of data and/or imagery from NASA's Fire Information for Resource Management System (FIRMS)
+              (https://earthdata.nasa.gov/firms), part of NASA's Land, Atmosphere Near real-time Capability for Earth observations (LANCE)
+              (https://earthdata.nasa.gov/lance) and NASA's Earth Science Data and Information System (ESDIS). Globe and true-colour imagery: NASA Global
+              Imagery Browse Services (GIBS). Map tiles: Esri. Data generated {meta.generated}.
+            </p>
+          </div>
         </div>
         <div className="v-box">
           <h3>Honest limits</h3>
@@ -156,28 +167,12 @@ export function Method({ m }: { m: Mission }) {
             <li>Counts are detections, not burned area or emissions. A hotspot is a thermal anomaly, not a confirmed fire.</li>
             <li>The Live view and Fire Wire use near-real-time data, which is preliminary and is not filtered for static heat sources.</li>
             <li>Smouldering peat fires can stay below detection, and cloud or thick smoke can hide fires entirely.</li>
-            <li>Regions use coarse outlines on a 0.5° grid: good for regional totals, not for borders.</li>
+            <li>Regions, countries and provinces are built from 0.5° or 1° grid cells: good for regional totals, not for exact borders.</li>
             <li>The MODIS conversion assumes the sensors related to each other in the past as they do today.</li>
             <li>Before Aqua's data began in mid-2002 only Terra was observing, so 2001 and early 2002 are probably undercounted.</li>
             <li>Detection matching covers two sample periods (August to October 2019 and 2023) and NOAA-20 only.</li>
             <li>2026 comes from NOAA-20 alone: standard data to July, near-real-time after, with static sources removed where standard data flagged them. NOAA-21 is not yet in the record.</li>
           </ul>
-        </div>
-        <div className="v-box">
-          <h3>Data and acknowledgment</h3>
-          <p className="ack">
-            We acknowledge the use of data and/or imagery from NASA's Fire Information for Resource Management System (FIRMS)
-            (https://earthdata.nasa.gov/firms), part of NASA's Land, Atmosphere Near real-time Capability for Earth observations (LANCE)
-            (https://earthdata.nasa.gov/lance) and NASA's Earth Science Data and Information System (ESDIS). Globe and true-colour imagery: NASA Global
-            Imagery Browse Services (GIBS). Map tiles: Esri. Data generated {meta.generated}.
-          </p>
-        </div>
-        <div className="v-box">
-          <h3>AI assistance</h3>
-          <p>
-            This project was built with the help of Claude (Anthropic) for code and analysis. Sound is generated in the browser. The team directed the
-            work and is responsible for the choices and results.
-          </p>
         </div>
       </div>
     </div>

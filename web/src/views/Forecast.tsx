@@ -634,7 +634,27 @@ export function Forecast({ m, go, path }: { m: Mission; go: (v: ViewId) => void;
   }, [path]);
 
   const meta = m.view.meta;
-  const rid = m.isCustom ? "study_area" : m.regionId;
+  // a selected province or drawn area has no forecast of its own: use the region that holds most of it
+  const hostRegion = useMemo(() => {
+    if (!m.isCustom || !m.aoi) return null;
+    const { grid, meta: bm } = m.data;
+    const cells = m.aoi.cells ?? grid.cells.flatMap(([cx, cy], i) => {
+      const lon = bm.box[0] + (cx + 0.5) * bm.cell;
+      const lat = bm.box[1] + (cy + 0.5) * bm.cell;
+      return lon >= m.aoi!.west && lon <= m.aoi!.east && lat >= m.aoi!.south && lat <= m.aoi!.north ? [i] : [];
+    });
+    const count = new Map<number, number>();
+    for (const ci of cells) {
+      const ri = grid.cells[ci]?.[2];
+      if (ri != null && ri >= 0) count.set(ri, (count.get(ri) ?? 0) + 1);
+    }
+    let best = -1;
+    let n = 0;
+    for (const [ri, c] of count) if (c > n) [best, n] = [ri, c];
+    const id = best >= 0 ? bm.regions[best]?.id : undefined;
+    return id && id !== "study_area" ? id : "study_area";
+  }, [m.isCustom, m.aoi, m.data]);
+  const rid = m.isCustom ? (hostRegion ?? "study_area") : m.regionId;
   const f = file?.regions[rid] ?? file?.regions.study_area;
   const regionName =
     rid === "study_area" ? (meta.sector?.name ?? "Southeast Asia") : (meta.regions.find((r) => r.id === rid)?.name ?? meta.sector?.name ?? "the study area");
@@ -699,7 +719,12 @@ export function Forecast({ m, go, path }: { m: Mission; go: (v: ViewId) => void;
           {verdict} The outlook learns from 25 harmonized years how a season that starts early or hot tends to carry on, and how El Niño shifts burning,
           then states its own margin of error.
         </p>
-        {m.isCustom && <p className="aoi-note">Forecasts are made for the sector's regions; showing the whole sector instead of your drawn area.</p>}
+        {m.isCustom && (
+          <p className="aoi-note">
+            Forecasts are made for whole regions, not single provinces or drawn areas. {m.area?.name ?? "Your area"} lies in{" "}
+            <b>{regionName}</b>, so this is {regionName}'s outlook. Choose a region in the top bar to see another.
+          </p>
+        )}
       </header>
 
       <SectionNav

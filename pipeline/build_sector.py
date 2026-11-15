@@ -20,7 +20,7 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import build_dataset as bd  # noqa: E402
-from sectors import SECTORS  # noqa: E402
+from sectors import SECTORS, SUBREGIONS  # noqa: E402
 
 DATA = os.path.join(os.path.dirname(HERE), "web", "public", "data")
 
@@ -52,6 +52,46 @@ def load(cache, sid):
     return pd.concat(frames, ignore_index=True)
 
 
+def plain(name):
+    import unicodedata
+    return unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower().strip()
+
+
+def subregion_cells(sid, sec, df, ne_path):
+    """Give every grid cell the group of states its centre falls in (or the nearest one, for coasts)."""
+    from shapely.geometry import Point, shape
+    from shapely.ops import unary_union
+    spec = SUBREGIONS[sid]
+    ne = json.load(open(ne_path, encoding="utf-8"))
+    by_name = {plain(f["properties"]["name"]): shape(f["geometry"]).buffer(0) for f in ne["features"] if f["properties"]["admin"] == spec["admin"]}
+    groups = []
+    used = set()
+    for name, colour, states in spec["groups"]:
+        geoms = []
+        for st in states:
+            k = plain(st)
+            if k not in by_name:
+                print(f"  warning: no outline for {st}", flush=True)
+                continue
+            geoms.append(by_name[k])
+            used.add(k)
+        groups.append(unary_union(geoms))
+    missing = sorted(set(by_name) - used)
+    if missing:
+        print(f"  warning: states in no group: {missing}", flush=True)
+    w, s, _, _ = sec["box"]
+    cell = sec["cell"]
+    region = {}
+    for cx, cy in df[["cx", "cy"]].drop_duplicates().itertuples(index=False):
+        pt = Point(w + (cx + 0.5) * cell, s + (cy + 0.5) * cell)
+        hit = next((g for g, geom in enumerate(groups) if geom.contains(pt)), None)
+        if hit is None:
+            hit = min(range(len(groups)), key=lambda g: groups[g].distance(pt))
+        region[(cx, cy)] = hit
+    df["region"] = [region[(a, b_)] for a, b_ in zip(df["cx"], df["cy"])]
+    return {slug(name): (name, colour, None) for name, colour, _ in spec["groups"]}
+
+
 def write_index(built):
     entries = [SEA_ENTRY]
     for sid, sec in SECTORS.items():
@@ -71,6 +111,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache", required=True)
     ap.add_argument("--sectors", default=",".join(SECTORS))
+    ap.add_argument("--ne", help="Natural Earth admin-1 GeoJSON, to split single countries into groups of states")
     args = ap.parse_args()
     for sid in args.sectors.split(","):
         sec = SECTORS[sid]
@@ -81,6 +122,8 @@ def main():
         w, s, e, n = sec["box"]
         cell = sec["cell"]
         regions = {slug(disp): (disp, colour, None) for _, disp, colour in sec["countries"]}
+        if sid in SUBREGIONS and args.ne:
+            regions = subregion_cells(sid, sec, df, args.ne)
         multi = len(regions) > 1
         cfg = {
             "box": sec["box"], "cell": cell,

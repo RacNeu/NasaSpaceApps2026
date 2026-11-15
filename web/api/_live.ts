@@ -18,6 +18,8 @@ export const SECTOR_BOXES: Record<string, readonly [number, number, number, numb
   brazil: [-74, -34, -34, 6],
   united_states: [-170, 18, -65, 72],
   canada: [-141, 41, -52, 84],
+  india: [68, 6, 98, 37.5],
+  central_africa: [13, 2, 36, 16],
 };
 const CELL = 0.1;
 const SOURCES = [

@@ -214,6 +214,40 @@ class IgnisAudio {
     o.stop(t + 0.75);
   }
 
+  /**
+   * The sound of text decoding: a quick, quiet run of tiny high blips, one per "character", as the
+   * headings scramble into place when a page opens. About half a second, then silence.
+   */
+  decode() {
+    const ctx = this.ctx;
+    const master = this.master;
+    if (!ctx || !master || !this._on) return;
+    const t0 = ctx.currentTime + 0.05;
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 2400;
+    bp.Q.value = 3;
+    const out = ctx.createGain();
+    out.gain.value = 0.5;
+    bp.connect(out).connect(master);
+    const n = 14;
+    for (let i = 0; i < n; i++) {
+      const t = t0 + i * 0.032 + Math.random() * 0.01;
+      const o = ctx.createOscillator();
+      o.type = "square";
+      // pitches step up a little through the run, like characters locking in
+      o.frequency.value = 1400 + Math.random() * 1400 + i * 40;
+      const g = ctx.createGain();
+      const peak = 0.035 * (1 - i / (n * 1.4));
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+      o.connect(g).connect(bp);
+      o.start(t);
+      o.stop(t + 0.035);
+    }
+  }
+
   /** A short filtered noise sweep for scene transitions. */
   sweep() {
     const ctx = this.ctx;

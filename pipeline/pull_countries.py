@@ -106,7 +106,9 @@ def main():
     # reference scale first, then the long MODIS record, then Suomi NPP (largest, least essential)
     order = {"noaa20": 0, "modis": 1, "snpp": 2}
     tasks = sorted(
-        [(sid, sensor, y) for sid in args.sectors.split(",") for sensor, (_, years) in SENSOR_FOLDERS.items() for y in years],
+        [(sid, sensor, y) for sid in args.sectors.split(",") for sensor, (_, years) in SENSOR_FOLDERS.items()
+         # a sector may download fewer years of a sensor (see sectors.py)
+         for y in SECTORS[sid].get("sensor_years", {}).get(sensor, years)],
         key=lambda t: (order[t[1]], -t[2]),
     )
     print(f"{len(tasks)} sector-sensor-years to process", flush=True)

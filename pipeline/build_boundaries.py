@@ -28,8 +28,10 @@ SECTORS = {
     "brazil": ["Brazil"],
     "united_states": ["United States of America"],
     "canada": ["Canada"],
+    "india": ["India"],
+    "central_africa": ["Central African Republic", "S. Sudan", "Sudan", "Chad"],
 }
-COUNTRY_LABEL = {"United States of America": "United States"}
+COUNTRY_LABEL = {"United States of America": "United States", "S. Sudan": "South Sudan", "Democratic Republic of the Congo": "DR Congo"}
 # tiny city-states are one unit, not their districts
 WHOLE = {"Singapore", "Brunei"}
 

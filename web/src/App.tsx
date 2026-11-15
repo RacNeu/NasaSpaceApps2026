@@ -81,6 +81,7 @@ function Console({ data, extras, ctx }: { data: Dataset; extras: Extras; ctx: Se
     setViewId((cur) => {
       if (cur !== v) {
         audio.sweep();
+        audio.decode();
         window.history.pushState(null, "", `#${v}`);
       }
       return v;
@@ -88,7 +89,10 @@ function Console({ data, extras, ctx }: { data: Dataset; extras: Extras; ctx: Se
   }, []);
 
   useEffect(() => {
-    const on = () => setViewId(fromHash());
+    const on = () => {
+      audio.decode();
+      setViewId(fromHash());
+    };
     window.addEventListener("popstate", on);
     window.addEventListener("hashchange", on);
     return () => {
@@ -149,7 +153,8 @@ function Console({ data, extras, ctx }: { data: Dataset; extras: Extras; ctx: Se
           <SectorPicker sectors={ctx.sectors} current={ctx.sector} loading={ctx.loading} onPick={ctx.onPick} />
           {def.regions && m.view.meta.regions.filter((r) => r.id !== "study_area").length > 1 && (
             <div className="tb-regions" role="group" aria-label="Region">
-              {m.view.meta.regions.map((r) => (
+              {/* on the globe the regions live in the left column; the bar keeps "All regions" and the one selected */}
+              {(viewId === "overview" ? [...m.view.meta.regions].sort((a, b) => (a.id === "study_area" ? -1 : b.id === "study_area" ? 1 : 0)) : m.view.meta.regions).filter((r) => viewId !== "overview" || r.id === "study_area" || r.id === m.regionId).map((r) => (
                 <button key={r.id} className={`tb-pill ${m.regionId === r.id ? "on" : ""}`} onClick={() => m.setRegionId(r.id)}>
                   <i style={{ background: r.color }} />
                   {r.id === "study_area" ? "All regions" : r.name}
