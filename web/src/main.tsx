@@ -16,6 +16,8 @@ import "./fx.css";
 import "./intro.css";
 import "./live.css";
 import "./sectors.css";
+// phone and tablet layout, last so it wins over the desktop rules
+import "./mobile.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

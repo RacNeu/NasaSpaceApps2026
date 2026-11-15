@@ -56,6 +56,10 @@ The Globe view carries a breaking-news strip, the **Fire Wire**, fed by the same
 
 The MAP_KEY stays on the server. It is never sent to the browser or committed.
 
+### Phones and tablets
+
+Below 1100 px the console becomes one scrolling column: the map first, then the Fire Wire and the timeline, then every panel at full width. Below 760 px the side rail becomes a bottom tab bar, the top bar splits into two rows (brand and sector, then the region buttons, which slide sideways), multi-column cards stack, the burning calendar scrolls sideways inside its card, and pages never scroll sideways. All of this lives in `web/src/mobile.css`, loaded last; wider screens are unchanged.
+
 ### Guided tour
 
 The **Guide** button in the side rail (above the sound switch) starts a 22-step tour of every feature: it opens each page, scrolls the feature into view, spotlights it and explains what it shows and how to use it. Next and Back (or the arrow keys) move through it, Esc closes it, and a small dot marks the button until the tour has been opened once.
