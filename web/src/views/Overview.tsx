@@ -6,6 +6,23 @@ import { MapLegend, MapView, type MapFocus } from "../components/MapView";
 import { FireWire } from "../components/FireWire";
 import { summarizeWorld, useWorldFeed, type Headline } from "../world";
 import type { SectorEntry } from "../data";
+
+interface BoundaryFile {
+  levels: { country: GeoJSON.FeatureCollection; province: GeoJSON.FeatureCollection };
+  cells: Record<string, number[]>;
+}
+const boundaryCache = new Map<string, Promise<BoundaryFile>>();
+const loadBoundaries = (path: string) => {
+  if (!boundaryCache.has(path))
+    boundaryCache.set(
+      path,
+      fetch(`${import.meta.env.BASE_URL}${path}boundaries.json`).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }),
+    );
+  return boundaryCache.get(path)!;
+};
 import { dateAt, fmtDate, fmtNum, indexOf, levelFor, monthName, rollingMean } from "../lib";
 import { Ticker } from "../fx";
 
@@ -173,6 +190,7 @@ function RecordStrip({ m }: { m: Mission }) {
 interface SectorNav {
   sectors: SectorEntry[];
   current: string;
+  path: string;
   onOpen: (id: string) => void;
 }
 
@@ -188,7 +206,7 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
         ? (meta.regions.find((r) => r.id === "study_area")?.name ?? "the whole sector")
         : "the whole study area"
       : regionId === "custom"
-        ? "your selected area"
+        ? (m.area?.name ?? "your selected area")
         : (meta.regions.find((r) => r.id === regionId)?.name ?? regionId);
   const named = meta.regions.filter((r) => r.id !== "study_area" && r.id !== "custom");
 
@@ -209,6 +227,41 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
     [feed.world, feed.grid],
   );
   const [worldOn, setWorldOn] = useState(false);
+  // ---- country and province outlines: hover names them, a click selects one
+  type BorderLevel = "off" | "country" | "province";
+  const multiCountry = meta.regions.filter((r) => r.id !== "study_area" && r.id !== "custom").length > 1;
+  const [borders, setBorders] = useState<BorderLevel>(multiCountry ? "country" : "province");
+  const [bnd, setBnd] = useState<BoundaryFile | null>(null);
+  useEffect(() => {
+    if (!nav || borders === "off" || bnd) return;
+    let alive = true;
+    loadBoundaries(nav.path).then((b) => alive && setBnd(b)).catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [nav, borders, bnd]);
+  const outlines = borders === "off" || !bnd ? null : bnd.levels[borders];
+  const pickBoundary = (id: string) => {
+    if (!bnd) return;
+    if (m.aoi?.id === id) {
+      m.clearArea();
+      return;
+    }
+    const f = [...bnd.levels.country.features, ...bnd.levels.province.features].find((x) => x.properties?.id === id);
+    const cells = bnd.cells[id];
+    if (!f || !cells?.length) return;
+    const p = f.properties as { name: string; country: string; bbox: [number, number, number, number] };
+    m.pickArea({
+      west: p.bbox[0],
+      south: p.bbox[1],
+      east: p.bbox[2],
+      north: p.bbox[3],
+      cells,
+      id,
+      name: p.country !== p.name ? `${p.name}, ${p.country}` : p.name,
+      outline: f.geometry,
+    });
+  };
   const [idx, setIdx] = useState(0);
   const [tour, setTour] = useState(false);
   const [wireOpen, setWireOpen] = useState(() => localStorage.getItem("ignis.wire") !== "closed");
@@ -274,6 +327,9 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
           regionId={regionId}
           mode={m.mapMode}
           aoi={m.area?.snapped ?? null}
+          boundaries={outlines}
+          selectedBoundary={m.aoi?.id ?? null}
+          onPickBoundary={pickBoundary}
           drawing={m.drawing}
           onDraw={m.onDraw}
           nav={false}
@@ -331,8 +387,21 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
           </button>
         )}
       </div>
+      {!worldOn && nav && !m.drawing && (
+        <div className="ov-borders glass">
+          <span className="mono">BORDERS</span>
+          <div className="seg" role="group" aria-label="Borders">
+            {(multiCountry ? (["off", "country", "province"] as BorderLevel[]) : (["off", "province"] as BorderLevel[])).map((l) => (
+              <button key={l} className={borders === l ? "on" : ""} onClick={() => setBorders(l)} title={l === "off" ? "Hide borders" : `Click a ${l} to select it`}>
+                {l === "off" ? "Off" : l === "country" ? "Countries" : multiCountry ? "Provinces" : "States"}
+              </button>
+            ))}
+          </div>
+          {borders !== "off" && <span className="mono dim">HOVER TO NAME · CLICK TO SELECT</span>}
+        </div>
+      )}
       {(m.drawMsg || m.isCustom) && !m.drawing && (
-        <div className="ov-note mono">{m.drawMsg ?? `YOUR AREA · ${m.area!.totalCells} GRID CELLS · WEEKLY VALUES · NO UNCERTAINTY RANGE`}</div>
+        <div className="ov-note mono">{m.drawMsg ?? `${(m.area!.name ?? "YOUR AREA").toUpperCase()} · ${m.area!.totalCells} GRID CELL${m.area!.totalCells === 1 ? "" : "S"} · WEEKLY VALUES · NO UNCERTAINTY RANGE${m.aoi?.id ? " · CLICK AGAIN OR ✕ TO CLEAR" : ""}`}</div>
       )}
 
       <FireWire

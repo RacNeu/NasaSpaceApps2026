@@ -14,6 +14,10 @@ interface Props {
   aoi?: Aoi | null;
   /** While true, dragging on the map draws a rectangle instead of panning. */
   drawing?: boolean;
+  /** Country or province outlines; hovering names them and a click selects one. */
+  boundaries?: GeoJSON.FeatureCollection | null;
+  selectedBoundary?: string | null;
+  onPickBoundary?: (id: string) => void;
   onDraw?: (box: Aoi) => void;
   /** Padding around the study area when the camera is fitted, to leave room for floating panels. */
   padding?: number | { top: number; bottom: number; left: number; right: number };
@@ -50,7 +54,8 @@ const rectFeature = (b: Aoi | null): GeoJSON.FeatureCollection => ({
         {
           type: "Feature",
           properties: {},
-          geometry: { type: "Polygon", coordinates: [[[b.west, b.south], [b.east, b.south], [b.east, b.north], [b.west, b.north], [b.west, b.south]]] },
+          // a country or province is drawn with its own outline, a drawn area as its rectangle
+          geometry: b.outline ?? { type: "Polygon", coordinates: [[[b.west, b.south], [b.east, b.south], [b.east, b.north], [b.west, b.north], [b.west, b.south]]] },
         },
       ]
     : [],
@@ -79,7 +84,7 @@ export function MapLegend({ cell = 0.5 }: { cell?: number }) {
   );
 }
 
-export function MapView({ data, week, regionId, mode = "columns", aoi = null, drawing = false, onDraw, padding = 12, nav = true, globe = false, highlights = 0, worldCols = null, worldOn = false, fcCols = null, fcOn = false, focus = null }: Props) {
+export function MapView({ data, week, regionId, mode = "columns", aoi = null, drawing = false, onDraw, padding = 12, nav = true, globe = false, highlights = 0, worldCols = null, worldOn = false, fcCols = null, fcOn = false, focus = null, boundaries = null, selectedBoundary = null, onPickBoundary }: Props) {
   const focusMarker = useRef<maplibregl.Marker | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
   const el = useRef<HTMLDivElement>(null);
@@ -87,8 +92,8 @@ export function MapView({ data, week, regionId, mode = "columns", aoi = null, dr
   const ready = useRef(false);
   const popup = useRef<maplibregl.Popup | null>(null);
   const { meta, grid } = data;
-  const latest = useRef({ week, regionId, mode, aoi, onDraw, worldOn, fcOn });
-  latest.current = { week, regionId, mode, aoi, onDraw, worldOn, fcOn };
+  const latest = useRef({ week, regionId, mode, aoi, onDraw, worldOn, fcOn, onPickBoundary, drawing });
+  latest.current = { week, regionId, mode, aoi, onDraw, worldOn, fcOn, onPickBoundary, drawing };
   const [loaded, setLoaded] = useState(false);
   const [settled, setSettled] = useState(false);
   const [baseFailed, setBaseFailed] = useState(false);
@@ -307,6 +312,23 @@ export function MapView({ data, week, regionId, mode = "columns", aoi = null, dr
         filter: ["==", ["get", "id"], latest.current.regionId],
         paint: { "line-color": ["get", "color"], "line-width": 2.6, "line-opacity": 1 },
       });
+      // country and province outlines (filled invisibly so the whole shape can be hovered and clicked)
+      m.addSource("bnd", { type: "geojson", data: { type: "FeatureCollection", features: [] }, promoteId: "id" });
+      m.addLayer({
+        id: "bnd-fill",
+        type: "fill",
+        source: "bnd",
+        paint: { "fill-color": "#9fe6f5", "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.14, 0.001] as any },
+      });
+      m.addLayer({ id: "bnd-line", type: "line", source: "bnd", paint: { "line-color": "#cfe3ee", "line-width": 0.7, "line-opacity": 0.45 } });
+      m.addLayer({
+        id: "bnd-sel-glow",
+        type: "line",
+        source: "bnd",
+        filter: ["==", ["get", "id"], ""],
+        paint: { "line-color": "#45B8D1", "line-width": 8, "line-blur": 6, "line-opacity": 0.7 },
+      });
+      m.addLayer({ id: "bnd-sel", type: "line", source: "bnd", filter: ["==", ["get", "id"], ""], paint: { "line-color": "#ffffff", "line-width": 2 } });
       m.addLayer({ id: "labels", type: "raster", source: "labels", paint: { "raster-opacity": 0.8 } });
       // 3D fire columns: height and colour both follow the week's detections
       m.addLayer({
@@ -413,6 +435,31 @@ export function MapView({ data, week, regionId, mode = "columns", aoi = null, dr
         m.getCanvas().style.cursor = "";
         popup.current?.remove();
       });
+      let hovered: string | number | undefined;
+      const bndPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 10, className: "bnd-popup" });
+      m.on("mousemove", "bnd-fill", (ev) => {
+        if (latest.current.drawing || latest.current.worldOn || latest.current.fcOn) return;
+        const f = ev.features?.[0];
+        if (!f) return;
+        if (hovered !== undefined && hovered !== f.id) m.setFeatureState({ source: "bnd", id: hovered }, { hover: false });
+        hovered = f.id;
+        if (hovered !== undefined) m.setFeatureState({ source: "bnd", id: hovered }, { hover: true });
+        const p = f.properties as any;
+        // the fire columns have their own popup; the outline name follows the pointer only over empty ground
+        if (!popup.current?.isOpen()) {
+          bndPopup.setLngLat(ev.lngLat).setHTML(`<strong>${p.name}</strong>${p.country !== p.name ? `<br/><span>${p.country}</span>` : ""}<br/><em>click to select</em>`).addTo(m);
+        } else bndPopup.remove();
+      });
+      m.on("mouseleave", "bnd-fill", () => {
+        if (hovered !== undefined) m.setFeatureState({ source: "bnd", id: hovered }, { hover: false });
+        hovered = undefined;
+        bndPopup.remove();
+      });
+      m.on("click", "bnd-fill", (ev) => {
+        if (latest.current.drawing || latest.current.worldOn || latest.current.fcOn) return;
+        const id = ev.features?.[0]?.properties?.id;
+        if (id) latest.current.onPickBoundary?.(String(id));
+      });
       m.on("mouseleave", "fires-cols", () => {
         m.getCanvas().style.cursor = "";
         popup.current?.remove();
@@ -441,6 +488,25 @@ export function MapView({ data, week, regionId, mode = "columns", aoi = null, dr
     if (!m || !loaded) return;
     (m.getSource("aoi") as maplibregl.GeoJSONSource | undefined)?.setData(rectFeature(aoi));
   }, [aoi, loaded]);
+
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !loaded) return;
+    (m.getSource("bnd") as maplibregl.GeoJSONSource | undefined)?.setData(boundaries ?? { type: "FeatureCollection", features: [] });
+  }, [boundaries, loaded]);
+
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !loaded) return;
+    for (const id of ["bnd-sel", "bnd-sel-glow"]) if (m.getLayer(id)) m.setFilter(id, ["==", ["get", "id"], selectedBoundary ?? ""]);
+  }, [selectedBoundary, loaded]);
+
+  // outlines belong to the archive; hide them on the live planet
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !loaded) return;
+    for (const id of ["bnd-fill", "bnd-line", "bnd-sel", "bnd-sel-glow"]) if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", worldOn ? "none" : "visible");
+  }, [worldOn, loaded]);
 
   // draw-a-rectangle mode (mouse and touch)
   useEffect(() => {

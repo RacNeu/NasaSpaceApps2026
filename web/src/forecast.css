@@ -660,3 +660,12 @@
 .dr-chart {
   max-width: 980px;
 }
+.fc-nav button {
+  transition: color 0.2s, background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.fc-nav button.on {
+  color: #fff;
+  background: rgba(255, 157, 67, 0.22);
+  border-color: rgba(255, 157, 67, 0.8);
+  box-shadow: 0 0 14px rgba(255, 157, 67, 0.35);
+}

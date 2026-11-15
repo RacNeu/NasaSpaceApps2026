@@ -30,6 +30,10 @@ A small server function (`web/api/firms.ts`, shared logic in `web/api/_live.ts`)
 
 Limits: near-real-time data is preliminary; static heat sources such as gas flares are not filtered out, so quiet-season counts can read a little high; and a day with no NOAA-20 detections at all is flagged as a probable data gap. Responses are cached for 15 minutes on the server and 30 minutes at the CDN to protect the key's request quota.
 
+### Countries and provinces
+
+On the Globe view, the **Borders** row draws country or province (state) outlines from Natural Earth 1:10m admin-1 data. Hovering names an outline and a click selects it: every view then shows that country or province, from its burning calendar to the CSV download, and the selection appears as a region button in the top bar. Click again or ✕ to clear. `pipeline/build_boundaries.py` simplifies the outlines, dissolves provinces into countries, and lists the grid cells whose centre falls inside each outline; an outline too small to hold a cell centre takes the cells it overlaps most and is flagged as approximate. Like a drawn area, a selected province uses the weekly harmonized grid and has no uncertainty range, and the forecast stays at region level.
+
 ### The forecast
 
 `pipeline/build_forecast.py` writes `forecast.json` next to each sector's data. It works on weekly totals on a log scale. The normal for each week of the year is the median of that week across the other years of the harmonized record. For each region and each lead time from 1 to 26 weeks, a ridge regression predicts how far above or below normal the week will be, from how unusual the last 4 and 12 weeks were and from NOAA's Oceanic Niño Index. The index's effect is allowed to change through the year, and only values already published on the issue date are used. Every year is forecast by a model fitted without it; those held-out errors set the 80% range, the chances of an above-normal or critical week (above the 90th percentile for that week of the year), and the skill scores shown on the site, including the same model without the El Niño input.
@@ -134,6 +138,9 @@ IGNIS_CACHE=../NasaSpaceApps/pipeline/cache python pipeline/build_dataset.py
 python pipeline/build_sector.py --cache ../NasaSpaceApps/pipeline/cache_sectors
 python pipeline/pull_weather.py --cache ../NasaSpaceApps/pipeline/cache_weather
 python pipeline/build_forecast.py --weather ../NasaSpaceApps/pipeline/cache_weather
+
+# country and province outlines for the globe (Natural Earth 1:10m admin-1, from naturalearthdata.com)
+python pipeline/build_boundaries.py --ne <path to ne_10m_admin_1_states_provinces.geojson>
 
 # the country lookup grid used to name live hotspots (run from web/, takes about two minutes)
 node scripts/build_countrygrid.mjs

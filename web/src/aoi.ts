@@ -7,6 +7,11 @@ export interface Aoi {
   south: number;
   east: number;
   north: number;
+  /** A country or province: its own grid cells (indices into grid.json), name and outline. */
+  cells?: number[];
+  name?: string;
+  id?: string;
+  outline?: GeoJSON.Geometry;
 }
 
 export interface AreaResult {
@@ -16,6 +21,7 @@ export interface AreaResult {
   /** Grid cells in the selection that recorded at least one detection in the record. */
   activeCells: number;
   totalCells: number;
+  name?: string;
 }
 
 /**
@@ -31,6 +37,7 @@ export function buildAreaSeries(data: Dataset, box: Aoi): AreaResult | null {
   const { meta, grid, daily } = data;
   const [bw, bs] = meta.box;
   const c = meta.cell;
+  if (box.cells) return buildFromCells(data, box);
   const x0 = Math.max(0, Math.floor((Math.min(box.west, box.east) - bw) / c));
   const x1 = Math.min(meta.nx - 1, Math.floor((Math.max(box.west, box.east) - bw) / c));
   const y0 = Math.max(0, Math.floor((Math.min(box.south, box.north) - bs) / c));
@@ -45,6 +52,25 @@ export function buildAreaSeries(data: Dataset, box: Aoi): AreaResult | null {
       activeCells++;
     }
   });
+  const series = seriesFor(data, inside);
+  return {
+    series,
+    snapped: { west: bw + x0 * c, south: bs + y0 * c, east: bw + (x1 + 1) * c, north: bs + (y1 + 1) * c },
+    activeCells,
+    totalCells: (x1 - x0 + 1) * (y1 - y0 + 1),
+  };
+}
+
+/** A country or province: the sum of the grid cells inside its outline. */
+function buildFromCells(data: Dataset, a: Aoi): AreaResult | null {
+  if (!a.cells?.length) return null;
+  const inside = new Uint8Array(data.grid.cells.length);
+  for (const ci of a.cells) if (ci >= 0 && ci < inside.length) inside[ci] = 1;
+  return { series: seriesFor(data, inside), snapped: a, activeCells: a.cells.length, totalCells: a.cells.length, name: a.name };
+}
+
+function seriesFor(data: Dataset, inside: Uint8Array): Series {
+  const { meta, grid, daily } = data;
 
   const T = daily.days;
   const W = grid.weeks;
@@ -99,13 +125,7 @@ export function buildAreaSeries(data: Dataset, box: Aoi): AreaResult | null {
     series.norm[t] = normW[w];
     series.norm90[t] = norm90W[w];
   }
-
-  return {
-    series,
-    snapped: { west: bw + x0 * c, south: bs + y0 * c, east: bw + (x1 + 1) * c, north: bs + (y1 + 1) * c },
-    activeCells,
-    totalCells: (x1 - x0 + 1) * (y1 - y0 + 1),
-  };
+  return series;
 }
 
 export const CUSTOM_ID = "custom";
@@ -115,7 +135,7 @@ export function withArea(data: Dataset, area: AreaResult | null): Dataset {
   if (!area) return data;
   return {
     ...data,
-    meta: { ...data.meta, regions: [...data.meta.regions, { id: CUSTOM_ID, name: "Your area", color: "#ffffff", polygon: null }] },
+    meta: { ...data.meta, regions: [...data.meta.regions, { id: CUSTOM_ID, name: area.name ?? "Your area", color: "#ffffff", polygon: null }] },
     daily: { ...data.daily, regions: { ...data.daily.regions, [CUSTOM_ID]: area.series } },
   };
 }

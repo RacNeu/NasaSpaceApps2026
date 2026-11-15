@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { scaleLinear } from "d3-scale";
 import { area as d3area, line as d3line } from "d3-shape";
 
@@ -279,10 +280,47 @@ export function HazeCard({ h }: { h: HazeInfo }) {
 /* ------------------------------------------------------------------ in-page navigation */
 
 export function SectionNav({ items }: { items: { id: string; label: string }[] }) {
+  const [active, setActive] = useState(items[0]?.id);
+  const navRef = useRef<HTMLElement>(null);
+  const ids = items.map((i) => i.id).join(",");
+
+  // follow the scroll: the active section is the last one whose top has passed just below the bar
+  useEffect(() => {
+    const nav = navRef.current;
+    const scroller = nav?.closest(".view") as HTMLElement | null;
+    if (!nav || !scroller) return;
+    const update = () => {
+      const line = nav.getBoundingClientRect().bottom + 90;
+      let cur = items[0]?.id;
+      for (const it of items) {
+        const el = document.getElementById(it.id);
+        if (el && el.getBoundingClientRect().top <= line) cur = it.id;
+      }
+      // at the very bottom, the last section is the one being read
+      if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 4) cur = items[items.length - 1]?.id;
+      setActive(cur);
+    };
+    // a handful of position reads per scroll event is cheap, and unlike an animation frame it also
+    // runs while the tab is in the background
+    update();
+    scroller.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      scroller.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ids]);
+
   return (
-    <nav className="fc-nav" aria-label="Forecast sections">
+    <nav className="fc-nav" aria-label="Forecast sections" ref={navRef}>
       {items.map((it) => (
-        <button key={it.id} className="mono" onClick={() => document.getElementById(it.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+        <button
+          key={it.id}
+          className={`mono ${active === it.id ? "on" : ""}`}
+          aria-current={active === it.id ? "true" : undefined}
+          onClick={() => document.getElementById(it.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+        >
           {it.label}
         </button>
       ))}

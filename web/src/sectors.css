@@ -443,3 +443,45 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* country and province outlines on the globe */
+.bnd-popup .maplibregl-popup-content {
+  padding: 6px 10px;
+}
+.bnd-popup em {
+  font-style: normal;
+  font-size: 10px;
+  color: #8fa3b6;
+  letter-spacing: 0.04em;
+}
+.ov-borders {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 4px 12px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.ov-borders > .mono {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: #8fa3b6;
+}
+.ov-borders .seg button {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.ov-tools .seg button {
+  white-space: nowrap;
+}
+.ov .ov-note {
+  top: 108px;
+}
+.ov .map-status {
+  top: 108px;
+}

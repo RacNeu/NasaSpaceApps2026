@@ -198,6 +198,7 @@ function Console({ data, extras, ctx }: { data: Dataset; extras: Extras; ctx: Se
                 nav={{
                   sectors: ctx.sectors,
                   current: ctx.sector.id,
+                  path: ctx.sector.path,
                   onOpen: (id) => {
                     const s = ctx.sectors.find((x) => x.id === id);
                     if (s && s.id !== ctx.sector.id) ctx.onPick(s);

@@ -66,6 +66,17 @@ export function useMission(data: Dataset, extras: Extras) {
     },
     [data],
   );
+  /** Select a country or province from the globe: its own cells, name and outline. */
+  const pickArea = useCallback(
+    (a: Aoi) => {
+      setDrawMsg(null);
+      setDrawing(false);
+      setAoi(a);
+      setRegionId(CUSTOM_ID);
+      audio.ping(880);
+    },
+    [],
+  );
   const clearArea = useCallback(() => {
     setAoi(null);
     setDrawing(false);
@@ -83,7 +94,7 @@ export function useMission(data: Dataset, extras: Extras) {
     t, pick, step,
     playing, setPlaying,
     mapMode, setMapMode,
-    aoi, area, isCustom, drawing, setDrawing, drawMsg, setDrawMsg, onDraw, clearArea,
+    aoi, area, isCustom, drawing, setDrawing, drawMsg, setDrawMsg, onDraw, clearArea, pickArea,
   };
 }
 
