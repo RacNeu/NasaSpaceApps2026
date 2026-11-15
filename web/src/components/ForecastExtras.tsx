@@ -115,7 +115,7 @@ export function SeasonTiming({ s, regionName }: { s: SeasonInfo; regionName: str
         {rows.map((h, i) => {
           const y = pad.t + i * rowH;
           return (
-            <g key={h.season}>
+            <g key={`${h.season}-${h.start}`}>
               <text x={pad.l - 6} y={y + 10} textAnchor="end" className="fc-tick">
                 {h.season}
               </text>

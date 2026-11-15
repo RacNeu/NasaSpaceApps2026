@@ -125,3 +125,35 @@
 .nav-btn.guide-btn {
   position: relative;
 }
+
+/* gliding between steps: the spotlight and the card move together, the text fades */
+.guide-hole {
+  transition: left 0.5s cubic-bezier(0.22, 0.75, 0.2, 1), top 0.5s cubic-bezier(0.22, 0.75, 0.2, 1),
+    width 0.5s cubic-bezier(0.22, 0.75, 0.2, 1), height 0.5s cubic-bezier(0.22, 0.75, 0.2, 1), border-radius 0.5s;
+}
+.guide-hole.empty {
+  border-radius: 50%;
+  animation: none;
+  box-shadow: 0 0 0 9999px rgba(3, 6, 12, 0.72);
+}
+.guide-card.placed {
+  transition: left 0.5s cubic-bezier(0.22, 0.75, 0.2, 1), top 0.5s cubic-bezier(0.22, 0.75, 0.2, 1), height 0.3s ease;
+}
+.guide-body {
+  animation: guide-text 0.35s ease both;
+}
+@keyframes guide-text {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-hole,
+  .guide-card.placed {
+    transition: none;
+  }
+  .guide-body {
+    animation: none;
+  }
+}

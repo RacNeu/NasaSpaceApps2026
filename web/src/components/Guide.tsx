@@ -200,6 +200,14 @@ export function Guide({ go, onClose }: { go: (v: ViewId) => void; onClose: () =>
   const [rect, setRect] = useState<DOMRect | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const [cardPos, setCardPos] = useState<{ left: number; top: number } | null>(null);
+  // the card only starts gliding once it has been placed the first time
+  const [placed, setPlaced] = useState(false);
+  useEffect(() => {
+    if (cardPos && !placed) {
+      const t = window.setTimeout(() => setPlaced(true), 60);
+      return () => window.clearTimeout(t);
+    }
+  }, [cardPos, placed]);
   const step = STEPS[i];
 
   const find = useCallback(() => {
@@ -214,7 +222,8 @@ export function Guide({ go, onClose }: { go: (v: ViewId) => void; onClose: () =>
   // open the page, wait for the feature to appear, bring it into view and measure it
   useEffect(() => {
     go(step.view);
-    setRect(null);
+    // a step with no feature to point at: the spotlight closes to the centre
+    if (!step.sel) setRect(null);
     let tries = 0;
     let timer = 0;
     const look = () => {
@@ -225,6 +234,8 @@ export function Guide({ go, onClose }: { go: (v: ViewId) => void; onClose: () =>
         timer = window.setTimeout(() => setRect(find()?.getBoundingClientRect() ?? null), 120);
       } else if (step.sel && tries++ < 20) {
         timer = window.setTimeout(look, 150);
+      } else if (step.sel) {
+        setRect(null);
       }
     };
     timer = window.setTimeout(look, 250);
@@ -302,18 +313,22 @@ export function Guide({ go, onClose }: { go: (v: ViewId) => void; onClose: () =>
   }, [next, back, onClose]);
 
   // the spotlight is clipped to the screen so its outline always shows
-  const hole = rect && (() => {
-    const l = Math.max(rect.left - PAD, 4);
-    const t = Math.max(rect.top - PAD, 4);
-    const r = Math.min(rect.right + PAD, window.innerWidth - 4);
-    const b = Math.min(rect.bottom + PAD, window.innerHeight - 4);
-    return { left: l, top: t, width: Math.max(0, r - l), height: Math.max(0, b - t) };
-  })();
+  // with nothing to point at, the spotlight shrinks to a point in the middle and the whole page dims
+  const hole = rect
+    ? (() => {
+        const l = Math.max(rect.left - PAD, 4);
+        const t = Math.max(rect.top - PAD, 4);
+        const r = Math.min(rect.right + PAD, window.innerWidth - 4);
+        const b = Math.min(rect.bottom + PAD, window.innerHeight - 4);
+        return { left: l, top: t, width: Math.max(0, r - l), height: Math.max(0, b - t) };
+      })()
+    : { left: window.innerWidth / 2, top: window.innerHeight / 2, width: 0, height: 0 };
 
   return (
     <div className="guide" role="dialog" aria-modal="true" aria-label="Guided tour">
-      {hole ? <div className="guide-hole" style={hole} /> : <div className="guide-dim" />}
-      <div className="guide-card glass" ref={cardRef} style={cardPos ?? { left: -9999, top: 0 }} key={i}>
+      <div className={`guide-hole ${rect ? "" : "empty"}`} style={hole} />
+      <div className={`guide-card glass ${placed ? "placed" : ""}`} ref={cardRef} style={cardPos ?? { left: -9999, top: 0 }}>
+        <div className="guide-body" key={i}>
         <div className="guide-top">
           <span className="mono guide-kicker">{step.kicker}</span>
           <span className="mono dim">
@@ -323,6 +338,7 @@ export function Guide({ go, onClose }: { go: (v: ViewId) => void; onClose: () =>
         <h3>{step.title}</h3>
         <p>{step.body}</p>
         {step.tip && <p className="guide-tip">{step.tip}</p>}
+        </div>
         <div className="guide-progress">
           <i style={{ width: `${((i + 1) / STEPS.length) * 100}%` }} />
         </div>
