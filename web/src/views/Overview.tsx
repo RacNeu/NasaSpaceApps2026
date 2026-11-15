@@ -211,6 +211,12 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
   const [worldOn, setWorldOn] = useState(false);
   const [idx, setIdx] = useState(0);
   const [tour, setTour] = useState(false);
+  const [wireOpen, setWireOpen] = useState(() => localStorage.getItem("ignis.wire") !== "closed");
+  const toggleWire = (open: boolean) => {
+    setWireOpen(open);
+    if (!open) setTour(false);
+    localStorage.setItem("ignis.wire", open ? "open" : "closed");
+  };
   const [focus, setFocus] = useState<MapFocus | null>(null);
   const dwell = tour ? 11 : 8;
   const heads = world?.headlines ?? [];
@@ -240,6 +246,13 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, tour, heads.length]);
+  // Esc stops the tour
+  useEffect(() => {
+    if (!tour) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setTour(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [tour]);
   const updated = feed.world?.latest ? `${feed.world.latest.slice(11, 16)} UTC` : null;
 
   const story = info.none
@@ -335,6 +348,8 @@ export function Overview({ m, go, nav }: { m: Mission; go: (v: ViewId) => void; 
           setTour(on);
           if (on) pickHead(idx);
         }}
+        open={wireOpen}
+        onOpen={toggleWire}
         onOpenSector={nav ? (id) => (id === nav.current ? backToArchive() : nav.onOpen(id)) : undefined}
       />
 

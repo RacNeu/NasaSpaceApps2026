@@ -26,6 +26,9 @@ interface Props {
   /** Live columns for the whole planet; shown instead of the sector archive while worldOn is true. */
   worldCols?: GeoJSON.FeatureCollection | null;
   worldOn?: boolean;
+  /** Forecast columns for the sector; shown instead of the archive while fcOn is true. */
+  fcCols?: GeoJSON.FeatureCollection | null;
+  fcOn?: boolean;
   /** Where the camera should fly next; a new key triggers a new flight. */
   focus?: MapFocus | null;
 }
@@ -76,7 +79,7 @@ export function MapLegend({ cell = 0.5 }: { cell?: number }) {
   );
 }
 
-export function MapView({ data, week, regionId, mode = "columns", aoi = null, drawing = false, onDraw, padding = 12, nav = true, globe = false, highlights = 0, worldCols = null, worldOn = false, focus = null }: Props) {
+export function MapView({ data, week, regionId, mode = "columns", aoi = null, drawing = false, onDraw, padding = 12, nav = true, globe = false, highlights = 0, worldCols = null, worldOn = false, fcCols = null, fcOn = false, focus = null }: Props) {
   const focusMarker = useRef<maplibregl.Marker | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
   const el = useRef<HTMLDivElement>(null);
@@ -84,8 +87,8 @@ export function MapView({ data, week, regionId, mode = "columns", aoi = null, dr
   const ready = useRef(false);
   const popup = useRef<maplibregl.Popup | null>(null);
   const { meta, grid } = data;
-  const latest = useRef({ week, regionId, mode, aoi, onDraw, worldOn });
-  latest.current = { week, regionId, mode, aoi, onDraw, worldOn };
+  const latest = useRef({ week, regionId, mode, aoi, onDraw, worldOn, fcOn });
+  latest.current = { week, regionId, mode, aoi, onDraw, worldOn, fcOn };
   const [loaded, setLoaded] = useState(false);
   const [settled, setSettled] = useState(false);
   const [baseFailed, setBaseFailed] = useState(false);
@@ -131,12 +134,14 @@ export function MapView({ data, week, regionId, mode = "columns", aoi = null, dr
   const applyMode = (m: maplibregl.Map, md: MapMode, animate = true) => {
     const vis = (id: string, on: boolean) => m.getLayer(id) && m.setLayoutProperty(id, "visibility", on ? "visible" : "none");
     // the world layer replaces the sector archive while it is on
-    const arch = !latest.current.worldOn;
+    const arch = !latest.current.worldOn && !latest.current.fcOn;
     vis("fires-heat", arch && md !== "cells");
     vis("fires-fill", arch && md === "cells");
     vis("fires-cols", arch && md === "columns");
     for (const id of ["regions-fill", "regions-fill-hi", "regions-glow", "regions-line", "regions-hi"]) vis(id, arch);
-    vis("world-cols", !arch);
+    vis("world-cols", latest.current.worldOn);
+    vis("fc-cols", latest.current.fcOn && !latest.current.worldOn);
+    for (const id of ["regions-line", "regions-hi"]) vis(id, arch || latest.current.fcOn);
     if (!arch) return;
     // under the columns the heat becomes a soft ground glow, never a white blob
     if (m.getLayer("fires-heat")) {
@@ -331,6 +336,21 @@ export function MapView({ data, week, regionId, mode = "columns", aoi = null, dr
           "fill-extrusion-vertical-gradient": true,
         },
       });
+      // forecast columns: height is the expected weekly detections, colour how that compares with normal
+      m.addSource("fc", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      m.addLayer({
+        id: "fc-cols",
+        type: "fill-extrusion",
+        source: "fc",
+        layout: { visibility: "none" },
+        paint: {
+          "fill-extrusion-color": ["interpolate", ["linear"], ["get", "r"], 0.4, "#2b7caa", 0.8, "#5ca0be", 1, "#5b6672", 1.4, "#e88c46", 2.2, "#F05A42", 4, "#ff2e4d"] as any,
+          "fill-extrusion-height": ["get", "h"] as any,
+          "fill-extrusion-base": 0,
+          "fill-extrusion-opacity": 0.9,
+          "fill-extrusion-vertical-gradient": true,
+        },
+      });
       applyMode(m, latest.current.mode, false);
       m.addSource("aoi", { type: "geojson", data: rectFeature(latest.current.aoi) });
       m.addLayer({ id: "aoi-fill", type: "fill", source: "aoi", paint: { "fill-color": "#ffffff", "fill-opacity": 0.07 } });
@@ -374,6 +394,20 @@ export function MapView({ data, week, regionId, mode = "columns", aoi = null, dr
           .setLngLat(ev.lngLat)
           .setHTML(`<strong>${Math.round(Number(f.properties?.v)).toLocaleString("en-US")}</strong> detections, last 48 h${f.properties?.country ? `<br/><span>${f.properties.country}</span>` : ""}`)
           .addTo(m);
+      });
+      m.on("mousemove", "fc-cols", (ev) => {
+        const f = ev.features?.[0];
+        if (!f) return;
+        m.getCanvas().style.cursor = "pointer";
+        const p = f.properties as any;
+        popup.current!
+          .setLngLat(ev.lngLat)
+          .setHTML(`<strong>~${Math.round(p.v).toLocaleString("en-US")}</strong> detections a week expected<br/><span>normal ${Math.round(p.n).toLocaleString("en-US")} · ${Number(p.r).toFixed(1)}× normal${p.region ? ` · ${p.region}` : ""}</span>`)
+          .addTo(m);
+      });
+      m.on("mouseleave", "fc-cols", () => {
+        m.getCanvas().style.cursor = "";
+        popup.current?.remove();
       });
       m.on("mouseleave", "world-cols", () => {
         m.getCanvas().style.cursor = "";
@@ -482,7 +516,7 @@ export function MapView({ data, week, regionId, mode = "columns", aoi = null, dr
     const m = map.current;
     markers.current.forEach((k) => k.remove());
     markers.current = [];
-    if (!m || !loaded || highlights <= 0 || worldOn) return;
+    if (!m || !loaded || highlights <= 0 || worldOn || fcOn) return;
     const row = grid.data[week] ?? [];
     const cells: { lon: number; lat: number; v: number }[] = [];
     for (let i = 0; i < row.length; i += 2) {
@@ -507,7 +541,13 @@ export function MapView({ data, week, regionId, mode = "columns", aoi = null, dr
       markers.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [week, loaded, highlights, worldOn]);
+  }, [week, loaded, highlights, worldOn, fcOn]);
+
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !loaded) return;
+    (m.getSource("fc") as maplibregl.GeoJSONSource | undefined)?.setData(fcCols ?? { type: "FeatureCollection", features: [] });
+  }, [fcCols, loaded]);
 
   useEffect(() => {
     const m = map.current;
@@ -530,11 +570,11 @@ export function MapView({ data, week, regionId, mode = "columns", aoi = null, dr
       const [w, s, e, n] = viewBox(meta);
       m.fitBounds([[w, s], [e, n]], { padding, duration: 2600, essential: true });
       m.once("moveend", () => {
-        if (latest.current.mode === "columns" && !latest.current.worldOn) m.easeTo({ pitch: 52, duration: 1200 });
+        if ((latest.current.mode === "columns" || latest.current.fcOn) && !latest.current.worldOn) m.easeTo({ pitch: 52, duration: 1200 });
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [worldOn, loaded]);
+  }, [worldOn, fcOn, loaded]);
 
   // fly to a headline
   useEffect(() => {

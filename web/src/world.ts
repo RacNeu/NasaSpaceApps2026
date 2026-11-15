@@ -45,7 +45,7 @@ function fetchWorld(): Promise<WorldPayload> {
   return p;
 }
 
-function loadCountryGrid(): Promise<CountryGrid> {
+export function loadCountryGrid(): Promise<CountryGrid> {
   gridCache ??= fetch(`${import.meta.env.BASE_URL}data/countrygrid.json`)
     .then((r) => r.json() as Promise<CountryGridFile>)
     .then((g) => {

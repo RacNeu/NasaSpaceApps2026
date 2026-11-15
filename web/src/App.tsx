@@ -12,7 +12,7 @@ import { Detection } from "./components/Detection";
 import { Harmonization } from "./components/Harmonization";
 import { Overview } from "./views/Overview";
 import { Record } from "./views/Record";
-import { Insights } from "./views/Insights";
+import { Forecast } from "./views/Forecast";
 import { Method } from "./views/Method";
 import { Live } from "./views/Live";
 import { Scramble, UtcClock } from "./fx";
@@ -30,9 +30,9 @@ const VIEWS: ViewDef[] = [
   { id: "live", label: "Live", title: "Live: this week", regions: false, icon: "M12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8" },
   { id: "record", label: "Record", title: "25-year record", regions: true, icon: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4M8 14h2M14 14h2M8 17h2" },
   { id: "satellites", label: "Orbit", title: "The satellites", regions: false, icon: "M9.5 14.5l5-5M7 12l-3 3 5 5 3-3M12 7l3-3 5 5-3 3M5 5l2 2M17 17l2 2" },
-  { id: "detection", label: "Detect", title: "Detection", regions: false, icon: "M12 3v4M12 17v4M3 12h4M17 12h4M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14z" },
-  { id: "harmonize", label: "Match", title: "Harmonization", regions: false, icon: "M9 5a5 5 0 1 0 0 10A5 5 0 0 0 9 5zM15 9a5 5 0 1 0 0 10 5 5 0 0 0 0-10z" },
-  { id: "insights", label: "Insights", title: "Mission briefing", regions: false, icon: "M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-7M20 16v-3" },
+  { id: "detection", label: "Pixels", title: "Step 1 · Why the counts differ", regions: false, icon: "M12 3v4M12 17v4M3 12h4M17 12h4M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14z" },
+  { id: "harmonize", label: "Verify", title: "Step 2 · Do the sensors agree?", regions: false, icon: "M9 5a5 5 0 1 0 0 10A5 5 0 0 0 9 5zM15 9a5 5 0 1 0 0 10 5 5 0 0 0 0-10z" },
+  { id: "forecast", label: "Forecast", title: "Fire outlook", regions: true, icon: "M3 17l5-5 4 3 4-6 5 4M15 5h6v6M3 21h18" },
   { id: "method", label: "Method", title: "Method and validation", regions: true, icon: "M5 12l4 4 10-10M4 4h16v16H4z" },
 ];
 
@@ -222,7 +222,7 @@ function Console({ data, extras, ctx }: { data: Dataset; extras: Extras; ctx: Se
             )}
             {viewId === "detection" && (ctx.sector.detailed ? <Detection demos={extras.demos} ratio={data.meta.calibration.study_area?.raw_viirs_to_modis_ratio ?? undefined} /> : <DetailedOnly ctx={ctx} what="Detection, pixel by pixel" />)}
             {viewId === "harmonize" && (ctx.sector.detailed ? <Harmonization demos={extras.demos} matching={extras.matching} /> : <DetailedOnly ctx={ctx} what="Detection-level matching" />)}
-            {viewId === "insights" && <Insights m={m} go={go} />}
+            {viewId === "forecast" && <Forecast m={m} go={go} path={ctx.sector.path} />}
             {viewId === "method" && <Method m={m} />}
           </div>
           {!reduced && (

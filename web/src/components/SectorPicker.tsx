@@ -94,7 +94,7 @@ export function SectorPicker({ sectors, current, loading, onPick }: Props) {
               ))}
             </div>
           ))}
-          <div className="sector-foot mono">EVERY SECTOR · SAME METHOD · 2001–2025</div>
+          <div className="sector-foot mono">EVERY SECTOR · SAME METHOD · 2001–2026</div>
         </div>
       )}
     </div>

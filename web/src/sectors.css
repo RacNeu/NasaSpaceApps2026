@@ -312,3 +312,134 @@
   background: rgba(69, 184, 209, 0.22);
   box-shadow: 0 0 16px rgba(69, 184, 209, 0.6);
 }
+
+/* Pixels (step 1) and Verify (step 2) each get their own accent, so they never look alike */
+.step-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  padding: 5px 12px;
+  border-radius: 999px;
+  margin-bottom: 12px;
+}
+.step-chip b {
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #0b1117;
+}
+.step-chip.amber {
+  color: #ffd3a3;
+  border: 1px solid rgba(255, 157, 67, 0.6);
+  background: rgba(255, 157, 67, 0.1);
+}
+.step-chip.amber b {
+  background: #ff9d43;
+}
+.step-chip.teal {
+  color: #b5f3df;
+  border: 1px solid rgba(48, 208, 160, 0.6);
+  background: rgba(48, 208, 160, 0.1);
+}
+.step-chip.teal b {
+  background: #30d0a0;
+}
+.v-detection .scene-code,
+.v-detection .view-head .scene-code {
+  color: #ff9d43;
+}
+.v-harmonize .scene-code {
+  color: #30d0a0;
+}
+.v-harmonize h2 {
+  text-shadow: 0 0 40px rgba(48, 208, 160, 0.25) !important;
+}
+.v-detection h2 {
+  text-shadow: 0 0 40px rgba(255, 157, 67, 0.25) !important;
+}
+.v-detection::before,
+.v-harmonize::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  z-index: 3;
+  pointer-events: none;
+}
+.v-detection::before {
+  background: linear-gradient(90deg, transparent, #ff9d43, transparent);
+}
+.v-harmonize::before {
+  background: linear-gradient(90deg, transparent, #30d0a0, transparent);
+}
+
+/* Method: downloads and spacing */
+.dl-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.dl-card {
+  padding: 16px 18px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.dl-card.main {
+  border-color: rgba(255, 157, 67, 0.45);
+}
+.dl-card h3 {
+  margin: 0;
+  font-size: 17px;
+}
+.dl-card p {
+  margin: 0;
+  font-size: 12.5px;
+  color: #a9bacb;
+  line-height: 1.5;
+  flex: 1;
+}
+.dl-card .who {
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: #ff9d43;
+}
+.dl-dates {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.dl-dates label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 9.5px;
+  color: #8fa3b6;
+}
+.dl-dates input {
+  background: rgba(12, 22, 36, 0.8);
+  color: #e6eef5;
+  border: 1px solid rgba(69, 184, 209, 0.4);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 12.5px;
+  color-scheme: dark;
+}
+.dl-card .dl-row {
+  padding: 0;
+  gap: 8px;
+}
+.v-box.compare {
+  margin: 18px 0;
+}
+@media (max-width: 1100px) {
+  .dl-grid {
+    grid-template-columns: 1fr;
+  }
+}

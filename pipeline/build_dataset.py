@@ -23,7 +23,8 @@ import numpy as np
 import pandas as pd
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CACHE = os.path.join(ROOT, "pipeline", "cache")
+# the caches can live outside the repo: set IGNIS_CACHE to their folder
+CACHE = os.environ.get("IGNIS_CACHE", os.path.join(ROOT, "pipeline", "cache"))
 OUT = os.path.join(ROOT, "web", "public", "data")
 
 BOX = (95.0, -6.0, 120.0, 8.0)
