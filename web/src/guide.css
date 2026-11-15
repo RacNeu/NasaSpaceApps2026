@@ -1,0 +1,127 @@
+/* ---------------------------------------------------------------- guided tour */
+.guide {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+}
+.guide-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 6, 12, 0.72);
+  pointer-events: auto;
+}
+/* the spotlight: a transparent box whose huge shadow dims everything else */
+.guide-hole {
+  position: absolute;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(3, 6, 12, 0.72), 0 0 0 2px #ff9d43, 0 0 28px rgba(255, 157, 67, 0.55);
+  transition: left 0.35s cubic-bezier(0.2, 0.7, 0.2, 1), top 0.35s cubic-bezier(0.2, 0.7, 0.2, 1), width 0.35s, height 0.35s;
+  pointer-events: none;
+  animation: guide-glow 2s ease-in-out infinite;
+}
+@keyframes guide-glow {
+  50% {
+    box-shadow: 0 0 0 9999px rgba(3, 6, 12, 0.72), 0 0 0 2px #ffc27a, 0 0 40px rgba(255, 157, 67, 0.75);
+  }
+}
+.guide-card {
+  position: absolute;
+  width: min(380px, calc(100vw - 24px));
+  padding: 16px 18px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 157, 67, 0.55);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 30px rgba(255, 157, 67, 0.15);
+  pointer-events: auto;
+  animation: guide-in 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes guide-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.guide-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  margin-bottom: 6px;
+}
+.guide-kicker {
+  color: #ffb066;
+}
+.guide-card h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  line-height: 1.3;
+}
+.guide-card p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #c3d1de;
+}
+.guide-tip {
+  font-size: 12px !important;
+  color: #9fe6f5 !important;
+}
+.guide-progress {
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 4px 0 12px;
+  overflow: hidden;
+}
+.guide-progress i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #f05a42, #ffc27a);
+  transition: width 0.35s ease;
+}
+.guide-actions {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+}
+.guide-actions button:disabled {
+  opacity: 0.35;
+}
+
+/* the guide button in the side rail */
+.nav-btn.guide-btn {
+  margin-top: auto;
+  margin-bottom: 4px;
+}
+.nav-btn.guide-btn.fresh::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff9d43;
+  box-shadow: 0 0 0 0 rgba(255, 157, 67, 0.7);
+  animation: guide-ping 1.6s ease-out infinite;
+}
+@keyframes guide-ping {
+  to {
+    box-shadow: 0 0 0 10px rgba(255, 157, 67, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-hole,
+  .guide-card,
+  .nav-btn.guide-btn.fresh::after {
+    animation: none;
+    transition: none;
+  }
+}
+.nav-btn.guide-btn + .nav-btn.sound {
+  margin-top: 0;
+}
+.nav-btn.guide-btn {
+  position: relative;
+}

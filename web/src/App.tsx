@@ -13,6 +13,7 @@ import { Harmonization } from "./components/Harmonization";
 import { Overview } from "./views/Overview";
 import { Record } from "./views/Record";
 import { Forecast } from "./views/Forecast";
+import { Guide } from "./components/Guide";
 import { Method } from "./views/Method";
 import { Live } from "./views/Live";
 import { Scramble, UtcClock } from "./fx";
@@ -75,6 +76,8 @@ function Console({ data, extras, ctx }: { data: Dataset; extras: Extras; ctx: Se
   const reduced = useReducedMotion();
   const soundOn = useAudioOn();
   const [viewId, setViewId] = useState<ViewId>(fromHash);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideSeen, setGuideSeen] = useState(() => localStorage.getItem("ignis.guide") === "seen");
   const def = VIEWS.find((v) => v.id === viewId)!;
 
   const go = useCallback((v: ViewId) => {
@@ -116,6 +119,7 @@ function Console({ data, extras, ctx }: { data: Dataset; extras: Extras; ctx: Se
 
   return (
     <div className="console">
+      {guideOpen && <Guide go={go} onClose={() => setGuideOpen(false)} />}
       <nav className="nav" aria-label="Views">
         <div className="nav-logo" aria-hidden>
           <svg viewBox="0 0 24 24" width="22" height="22">
@@ -133,6 +137,21 @@ function Console({ data, extras, ctx }: { data: Dataset; extras: Extras; ctx: Se
             </button>
           ))}
         </div>
+        <button
+          className={`nav-btn guide-btn ${guideSeen ? "" : "fresh"}`}
+          onClick={() => {
+            setGuideOpen(true);
+            setGuideSeen(true);
+            localStorage.setItem("ignis.guide", "seen");
+          }}
+          title="A guided tour of every feature"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.8M12 17h.01" />
+          </svg>
+          <span className="mono">Guide</span>
+        </button>
         <button className={`nav-btn sound ${soundOn ? "live" : ""}`} onClick={() => audio.toggle()} aria-pressed={soundOn} title={soundOn ? "Sound on. Click to mute." : "Sound off. Click to enable."}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
             {soundOn ? <path d="M2 12c2-6 4-6 6 0s4 6 6 0 4-6 6 0" /> : <path d="M2 12h20M5 5l14 14" />}

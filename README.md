@@ -56,6 +56,10 @@ The Globe view carries a breaking-news strip, the **Fire Wire**, fed by the same
 
 The MAP_KEY stays on the server. It is never sent to the browser or committed.
 
+### Guided tour
+
+The **Guide** button in the side rail (above the sound switch) starts a 22-step tour of every feature: it opens each page, scrolls the feature into view, spotlights it and explains what it shows and how to use it. Next and Back (or the arrow keys) move through it, Esc closes it, and a small dot marks the button until the tour has been opened once.
+
 ### Sectors
 
 A **Sector** box in the top bar switches the whole console between places. Every sector runs through the same harmonization, validation and anomaly code, so they are directly comparable.
