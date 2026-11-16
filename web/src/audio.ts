@@ -49,7 +49,7 @@ class IgnisAudio {
     if (!this.ctx || !this.master) return;
     if (this.ctx.state === "suspended") await this.ctx.resume();
     this.master.gain.cancelScheduledValues(this.ctx.currentTime);
-    this.master.gain.setTargetAtTime(0.32, this.ctx.currentTime, 0.9);
+    this.master.gain.setTargetAtTime(0.7, this.ctx.currentTime, 0.9);
     this._on = true;
     try {
       localStorage.setItem(KEY, "on");
@@ -91,7 +91,7 @@ class IgnisAudio {
     master.gain.value = 0;
     // a gentle limiter before the speakers, so overlapping sounds never clip and crackle
     const limiter = ctx.createDynamicsCompressor();
-    limiter.threshold.value = -10;
+    limiter.threshold.value = -4;
     limiter.knee.value = 6;
     limiter.ratio.value = 12;
     limiter.attack.value = 0.003;
@@ -207,8 +207,8 @@ class IgnisAudio {
     o.frequency.setValueAtTime(1500, t);
     o.frequency.setValueAtTime(2100, t + 0.09);
     o.connect(out);
-    out.gain.exponentialRampToValueAtTime(0.05, t + 0.01);
-    out.gain.setValueAtTime(0.05, t + 0.16);
+    out.gain.exponentialRampToValueAtTime(0.08, t + 0.01);
+    out.gain.setValueAtTime(0.08, t + 0.16);
     out.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
     o.start(t);
     o.stop(t + 0.25);
@@ -225,7 +225,7 @@ class IgnisAudio {
     o.frequency.value = freq;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.18, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.42, t + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
     o.connect(g).connect(master);
     o.start(t);
@@ -256,7 +256,7 @@ class IgnisAudio {
       // pitches step up a little through the run, like characters locking in
       o.frequency.value = 1400 + Math.random() * 1400 + i * 40;
       const g = ctx.createGain();
-      const peak = 0.035 * (1 - i / (n * 1.4));
+      const peak = 0.1 * (1 - i / (n * 1.4));
       g.gain.setValueAtTime(0.0001, t);
       g.gain.exponentialRampToValueAtTime(peak, t + 0.008);
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
@@ -288,7 +288,7 @@ class IgnisAudio {
     f.frequency.exponentialRampToValueAtTime(2600, t + 1.2);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.09, t + 0.5);
+    g.gain.exponentialRampToValueAtTime(0.26, t + 0.5);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 1.35);
     src.connect(f).connect(g).connect(master);
     src.start(t);
