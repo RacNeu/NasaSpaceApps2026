@@ -20,6 +20,9 @@ class IgnisAudio {
   private oscB: OscillatorNode | null = null;
   private chirpTimer: number | undefined;
   private listeners = new Set<() => void>();
+  /** When each cue last played (ms), so rapid repeats cannot pile up into a buzz. */
+  private lastCue: Record<string, number> = {};
+  private sweepBuf: AudioBuffer | null = null;
   private _on = false;
 
   get on() {
@@ -86,7 +89,14 @@ class IgnisAudio {
     this.ctx = ctx;
     const master = ctx.createGain();
     master.gain.value = 0;
-    master.connect(ctx.destination);
+    // a gentle limiter before the speakers, so overlapping sounds never clip and crackle
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -10;
+    limiter.knee.value = 6;
+    limiter.ratio.value = 12;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.25;
+    master.connect(limiter).connect(ctx.destination);
     this.master = master;
 
     // gentle low-pass so nothing is harsh
@@ -153,6 +163,14 @@ class IgnisAudio {
     lfo2.start();
   }
 
+  /** True if this cue has not played in the last `gapMs` milliseconds (and marks it as played). */
+  private allow(cue: string, gapMs: number) {
+    const now = performance.now();
+    if (now - (this.lastCue[cue] ?? -Infinity) < gapMs) return false;
+    this.lastCue[cue] = now;
+    return true;
+  }
+
   /** 0 = calm opening, 1 = intense analysis. Shifts the drone's pitch and brightness. */
   setIntensity(x: number) {
     if (!this.ctx || !this.oscA || !this.oscB || !this.filter) return;
@@ -197,10 +215,10 @@ class IgnisAudio {
   }
 
   /** Soft ping for a selection. */
-  ping(freq = 880) {
+  ping(freq = 880, cue = "ping", gapMs = 90) {
     const ctx = this.ctx;
     const master = this.master;
-    if (!ctx || !master || !this._on) return;
+    if (!ctx || !master || !this._on || !this.allow(cue, gapMs)) return;
     const t = ctx.currentTime;
     const o = ctx.createOscillator();
     o.type = "sine";
@@ -221,7 +239,7 @@ class IgnisAudio {
   decode() {
     const ctx = this.ctx;
     const master = this.master;
-    if (!ctx || !master || !this._on) return;
+    if (!ctx || !master || !this._on || !this.allow("decode", 400)) return;
     const t0 = ctx.currentTime + 0.05;
     const bp = ctx.createBiquadFilter();
     bp.type = "bandpass";
@@ -240,7 +258,7 @@ class IgnisAudio {
       const g = ctx.createGain();
       const peak = 0.035 * (1 - i / (n * 1.4));
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(peak, t + 0.004);
+      g.gain.exponentialRampToValueAtTime(peak, t + 0.008);
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
       o.connect(g).connect(bp);
       o.start(t);
@@ -252,14 +270,17 @@ class IgnisAudio {
   sweep() {
     const ctx = this.ctx;
     const master = this.master;
-    if (!ctx || !master || !this._on) return;
+    if (!ctx || !master || !this._on || !this.allow("sweep", 400)) return;
     const t = ctx.currentTime;
-    const len = Math.floor(ctx.sampleRate * 1.4);
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    // the noise is made once and reused
+    if (!this.sweepBuf) {
+      const len = Math.floor(ctx.sampleRate * 1.4);
+      this.sweepBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = this.sweepBuf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    }
     const src = ctx.createBufferSource();
-    src.buffer = buf;
+    src.buffer = this.sweepBuf;
     const f = ctx.createBiquadFilter();
     f.type = "bandpass";
     f.Q.value = 2;
