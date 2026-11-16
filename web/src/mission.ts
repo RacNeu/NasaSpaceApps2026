@@ -31,7 +31,8 @@ export function useMission(data: Dataset, extras: Extras) {
     (i: number) => {
       setPlaying(false);
       setT(clamp(i));
-      audio.ping(520);
+      // scrubbing the timeline ticks softly, at most about four times a second
+      audio.ping(520, "scrub", 240);
     },
     [clamp],
   );
